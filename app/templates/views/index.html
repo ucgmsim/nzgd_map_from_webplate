@@ -1,12 +1,40 @@
 {% extends "base.html" %}
-
+ 
 {% block title %}
 Hello World
 {% endblock %}
-
+ 
 {% block content %}
 <section>
-    <h1>Hello, World!</h1>
-    <p>Welcome to your Flask app using HTMX and Plotly!</p>
+    <h1>Map of Intensity Measures</h1>
+</section>
+
+<!-- Form to allow user input for filtering data -->
+<form method="GET" action="{{url_for('views.index')}}">
+    <!-- Text input for a custom query, passed as the 'query' parameter in the URL -->
+<input name='query' hx-get="/validate" hx-trigger="keyup delay:300ms changed" hx-target="#error" placeholder='Input your pandas-compatible search query' value="{{query or ''}}"></input>
+
+    <!-- Dropdown to select an intensity measure -->
+    <label for="intensity_measure">Select an intensity measure</label>
+    <select name="intensity_measure">
+        <!-- Populate dropdown options dynamically from the list of intensity measures -->
+        {% for im in intensity_measures %}
+        <option
+            value="{{im}}"
+            {% if selected_im == im %}selected{% endif %}  <!-- Mark the current selection -->
+        >
+            {{im}}
+        </option>
+        {% endfor %}
+    </select>
+
+    <!-- Submit button to trigger a search -->
+    <button>Search</button>
+    <div id="error"></div>
+</form>
+
+<!-- Section to render the Plotly map -->
+<section role="figure">
+    {{map | safe}} <!-- Render the Plotly map as raw HTML. 'safe' prevents auto-escaping of HTML content -->
 </section>
 {% endblock %}
