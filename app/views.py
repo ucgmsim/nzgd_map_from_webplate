@@ -7,9 +7,10 @@ import plotly.express as px
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
 
-@bp.route('/spt/<record_name>', methods=['GET'])
+
+@bp.route("/spt/<record_name>", methods=["GET"])
 def spt_record(record_name: int) -> str:
-    return ''
+    return ""
 
 
 @bp.route("/", methods=["GET"])
@@ -40,10 +41,10 @@ def index() -> str:
     df = df[df["spt_vs_correlation_and_vs30_correlation"] == im]
 
     # Apply custom query filtering if provided
-    print(df[df['record_name'] == 'BH_16467'])
+    print(df[df["record_name"] == "BH_16467"])
     if query:
         df = df.query(query)
-    print(df[df['record_name'] == 'BH_16467'])
+    print(df[df["record_name"] == "BH_16467"])
 
     # Calculate the center of the map for visualization
     centre_lat = df["latitude"].mean()
@@ -104,15 +105,37 @@ def validate():
 
     # Create a dummy dataframe to ensure the column names are present
     dummy_df = pd.DataFrame(
-        columns=['record_name', 'type', 'original_reference', 'investigation_date',
-       'total_depth', 'published_date', 'latitude', 'longitude', 'nzgd_url',
-       'region', 'district', 'city', 'suburb', 'foster_2019_vs30',
-       'foster_2019_vs30_std', 'error_from_data', 'vs30_from_data',
-       'vs30_std_from_data', 'spt_vs_correlation', 'vs30_correlation',
-       'used_soil_info', 'hammer_type', 'borehole_diameter', 'min_depth',
-       'max_depth', 'depth_span', 'num_depth_levels',
-       'spt_vs_correlation_and_vs30_correlation',
-       'log_vs30_from_data_minus_log_vs30_from_foster_2019']
+        columns=[
+            "record_name",
+            "type",
+            "original_reference",
+            "investigation_date",
+            "total_depth",
+            "published_date",
+            "latitude",
+            "longitude",
+            "nzgd_url",
+            "region",
+            "district",
+            "city",
+            "suburb",
+            "foster_2019_vs30",
+            "foster_2019_vs30_std",
+            "error_from_data",
+            "vs30_from_data",
+            "vs30_std_from_data",
+            "spt_vs_correlation",
+            "vs30_correlation",
+            "used_soil_info",
+            "hammer_type",
+            "borehole_diameter",
+            "min_depth",
+            "max_depth",
+            "depth_span",
+            "num_depth_levels",
+            "spt_vs_correlation_and_vs30_correlation",
+            "log_vs30_from_data_minus_log_vs30_from_foster_2019",
+        ]
     )
     try:
         dummy_df.query(query)

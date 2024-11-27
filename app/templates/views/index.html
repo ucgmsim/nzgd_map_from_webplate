@@ -1,9 +1,5 @@
 {% extends "base.html" %}
- 
-{% block title %}
-SPT data
-{% endblock %}
- 
+{% block title %} SPT data {% endblock %}
 {% block content %}
 <section>
     <h1>SPT data</h1>
@@ -12,17 +8,25 @@ SPT data
 <!-- Form to allow user input for filtering data -->
 <form id="query-form" method="GET" action="{{url_for('views.index')}}">
     <!-- Text input for a custom query, passed as the 'query' parameter in the URL -->
-    <input id="query-input" name='query' hx-get="/validate" hx-trigger="keyup delay:300ms changed" hx-target="#error" placeholder='Input your pandas-compatible search query' value="{{query or ''}}">
+    <input
+        id="query-input"
+        name="query"
+        hx-get="/validate"
+        hx-trigger="keyup delay:300ms changed"
+        hx-target="#error"
+        placeholder="Input your pandas-compatible search query"
+        value="{{query or ''}}"
+    />
     <div id="error"></div>
 
     <!-- Dropdown to select an intensity measure -->
-    <label id="query-label" for="intensity_measure">Select a correlation option</label>
+    <label id="query-label" for="intensity_measure"
+        >Select a correlation option</label
+    >
     <select id="query-input" name="intensity_measure">
         <!-- Populate dropdown options dynamically from the list of intensity measures -->
         {% for im in intensity_measures %}
-        <option
-            value="{{im}}"
-            {% if selected_im == im %}selected{% endif %}>
+        <option value="{{im}}" {% if selected_im=="im" %}selected{% endif %}>
             {{im}}
         </option>
         {% endfor %}
@@ -30,11 +34,7 @@ SPT data
     <label for="intensity_measure">Select a value to colour by</label>
     <select id="query-colour" name="colour_by">
         {% for column, label in colour_variables %}
-        <option
-            value="{{column}}"
-            {% if column == colour_by %}selected{% endif %}>
-            {{label}}
-        </option>
+        <option value="{{column}}" {% if column=="colour_by" %}selected{% endif %}> {{label}}</option>
         {% endfor %}
     </select>
     <!-- Submit button to trigger a search -->
@@ -43,6 +43,19 @@ SPT data
 
 <!-- Section to render the Plotly map -->
 <section role="figure">
-    {{map | safe}} <!-- Render the Plotly map as raw HTML. 'safe' prevents auto-escaping of HTML content -->
+    {{map | safe}}
+    <!-- Render the Plotly map as raw HTML. 'safe' prevents auto-escaping of HTML content -->
+    <script>
+        var plot_element =
+            document.getElementsByClassName("plotly-graph-div")[0];
+        plot_element.on("plotly_click", function (data) {
+            {
+            var point = data.points[0];
+                if (point) {
+                 window.open(`{{url_for('views.spt_record', record_name='')}}/${point.hovertext}`, '_blank', 'noopener,noreferrer');
+                }
+            }
+        });
+    </script>
 </section>
 {% endblock %}
