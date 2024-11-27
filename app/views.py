@@ -31,7 +31,7 @@ def index() -> str:
     )
     colour_by = flask.request.args.get(
         "colour_by",
-        default="Vs30",  # Default value if no query parameter is provided
+        default="vs30_from_data",  # Default value if no query parameter is provided
     )
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
@@ -46,8 +46,8 @@ def index() -> str:
     print(df[df['record_name'] == 'BH_16467'])
 
     # Calculate the center of the map for visualization
-    centre_lat = df["Latitude"].mean()
-    centre_lon = df["Longitude"].mean()
+    centre_lat = df["latitude"].mean()
+    centre_lon = df["longitude"].mean()
 
     # Add a constant size column for consistent marker sizes in the map
     df["size"] = 0.5
@@ -55,14 +55,14 @@ def index() -> str:
     # Create an interactive scatter map using Plotly
     im_map = px.scatter_map(
         df,
-        lat="Latitude",  # Column specifying latitude
-        lon="Longitude",  # Column specifying longitude
+        lat="latitude",  # Column specifying latitude
+        lon="longitude",  # Column specifying longitude
         color=colour_by,  # Column specifying marker color
         hover_name=df["record_name"],
         zoom=5,  # What to display when hovering over a marker
         hover_data={
-            "Vs30": ":.2f",  # Format numerical values in scientific notation
-            "Vs30_sd": ":.2f",
+            "vs30_from_data": ":.2f",  # Format numerical values in scientific notation
+            "vs30_std_from_data": ":.2f",
             "min_depth": ":.2f",
             "max_depth": ":.2f",
             "depth_span": ":.2f",
@@ -86,8 +86,8 @@ def index() -> str:
         intensity_measures=intensity_measures,  # Pass all intensity measures for UI dropdown
         colour_by=colour_by,
         colour_variables=[
-            ("Vs30", "Vs30"),
-            ("Vs30_sd", "Vs30 Standard Deviation"),
+            ("vs30", "vs30"),
+            ("vs30_std", "Vs30 Standard Deviation"),
             ("min_depth", "Minimum Depth"),
             ("max_depth", "Maximum Depth"),
             ("depth_span", "Depth Span"),
@@ -104,31 +104,15 @@ def validate():
 
     # Create a dummy dataframe to ensure the column names are present
     dummy_df = pd.DataFrame(
-        columns=[
-            "record_name",
-            "error",
-            "Vs30",
-            "Vs30_sd",
-            "spt_vs_correlation",
-            "vs30_correlation",
-            "used_soil_info",
-            "hammer_type",
-            "borehole_diameter",
-            "min_depth",
-            "max_depth",
-            "depth_span",
-            "num_depth_levels",
-            "ID",
-            "Type",
-            "OriginalReference",
-            "InvestigationDate",
-            "TotalDepth",
-            "PublishedDate",
-            "Coordinate System",
-            "Latitude",
-            "Longitude" "URL",
-            "spt_vs_correlation_and_vs30_correlation",
-        ]
+        columns=['record_name', 'type', 'original_reference', 'investigation_date',
+       'total_depth', 'published_date', 'latitude', 'longitude', 'nzgd_url',
+       'region', 'district', 'city', 'suburb', 'foster_2019_vs30',
+       'foster_2019_vs30_std', 'error_from_data', 'vs30_from_data',
+       'vs30_std_from_data', 'spt_vs_correlation', 'vs30_correlation',
+       'used_soil_info', 'hammer_type', 'borehole_diameter', 'min_depth',
+       'max_depth', 'depth_span', 'num_depth_levels',
+       'spt_vs_correlation_and_vs30_correlation',
+       'log_vs30_from_data_minus_log_vs30_from_foster_2019']
     )
     try:
         dummy_df.query(query)
