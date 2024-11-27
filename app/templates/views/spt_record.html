@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}
+SPT data for {{ record_id }}
+{% endblock %}
+
+{% block content %}
+<h1>SPT data for {{ record_id }}</h1>
+    <a href="hypocentre location"></a>
+    <table>
+        <tr>
+            <th>Record ID</th>
+            <th>Depth</th>
+            <th>Blows</th>
+            <th>Friction</th>
+            <th>Groundwater</th>
+            <th>Soil Type</th>
+        </tr>
+        <tr>
+            <td>{{ record_id }}</td>
+            <td>{{ depth }}</td>
+            <td>{{ blows }}</td>
+            <td>{{ friction }}</td>
+            <td>{{ groundwater }}</td>
+            <td>{{ soil_type }}</td>
+        </tr>
+    </table>
+    {{ spt_plot | safe }}
+{% endblock %}

@@ -7,6 +7,11 @@ import plotly.express as px
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
 
+@bp.route('/spt/<record_name>', methods=['GET'])
+def spt_record(record_name: int) -> str:
+    return ''
+
+
 @bp.route("/", methods=["GET"])
 def index() -> str:
     """Serve the standard index page."""
@@ -16,7 +21,6 @@ def index() -> str:
     # Load intensity measures data from a Parquet file
     df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
 
-
     # Extract unique intensity measures for UI dropdown or selection
     intensity_measures = df["spt_vs_correlation_and_vs30_correlation"].unique()
 
@@ -25,16 +29,21 @@ def index() -> str:
         "intensity_measure",
         default="brandenberg_2010_boore_2011",  # Default value if no query parameter is provided
     )
-
+    colour_by = flask.request.args.get(
+        "colour_by",
+        default="Vs30",  # Default value if no query parameter is provided
+    )
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
-    # Filter the dataframe for the selected intensity measure
-    #df = df[df["intensity_measure"] == im]
+    # Filter the dataframe for the selected spt_vs_correlation_and_vs30_correlation
+    df = df[df["spt_vs_correlation_and_vs30_correlation"] == im]
 
     # Apply custom query filtering if provided
+    print(df[df['record_name'] == 'BH_16467'])
     if query:
         df = df.query(query)
+    print(df[df['record_name'] == 'BH_16467'])
 
     # Calculate the center of the map for visualization
     centre_lat = df["Latitude"].mean()
@@ -48,9 +57,9 @@ def index() -> str:
         df,
         lat="Latitude",  # Column specifying latitude
         lon="Longitude",  # Column specifying longitude
-        color="Vs30",  # Column specifying marker color
+        color=colour_by,  # Column specifying marker color
         hover_name=df["record_name"],
-        zoom=5,# What to display when hovering over a marker
+        zoom=5,  # What to display when hovering over a marker
         hover_data={
             "Vs30": ":.2f",  # Format numerical values in scientific notation
             "Vs30_sd": ":.2f",
@@ -64,7 +73,6 @@ def index() -> str:
         center={"lat": centre_lat, "lon": centre_lon},  # Map center
     )
 
-
     # Render the map and data in an HTML template
     return flask.render_template(
         "views/index.html",
@@ -76,6 +84,15 @@ def index() -> str:
         selected_im=im,  # Pass the selected intensity measure for the template
         query=query,  # Pass the query back for persistence in UI
         intensity_measures=intensity_measures,  # Pass all intensity measures for UI dropdown
+        colour_by=colour_by,
+        colour_variables=[
+            ("Vs30", "Vs30"),
+            ("Vs30_sd", "Vs30 Standard Deviation"),
+            ("min_depth", "Minimum Depth"),
+            ("max_depth", "Maximum Depth"),
+            ("depth_span", "Depth Span"),
+            ("num_depth_levels", "Number of Depth Levels"),
+        ],
     )
 
 
@@ -87,36 +104,39 @@ def validate():
 
     # Create a dummy dataframe to ensure the column names are present
     dummy_df = pd.DataFrame(
-        columns=["record_name",
-                 "error",
-                 "Vs30",
-                 "Vs30_sd",
-                 "spt_vs_correlation",
-                 "vs30_correlation",
-                 "used_soil_info",
-                 "hammer_type", "borehole_diameter",
-                 "min_depth",
-                 "max_depth",
-                 "depth_span",
-                 "num_depth_levels",
-                 "ID",
-                 "Type",
-                 "OriginalReference",
-                 "InvestigationDate",
-                 "TotalDepth",
-                 "PublishedDate",
-                 "Coordinate System",
-                 "Latitude",
-                 "Longitude"
-                 "URL",
-                 "spt_vs_correlation_and_vs30_correlation"])
+        columns=[
+            "record_name",
+            "error",
+            "Vs30",
+            "Vs30_sd",
+            "spt_vs_correlation",
+            "vs30_correlation",
+            "used_soil_info",
+            "hammer_type",
+            "borehole_diameter",
+            "min_depth",
+            "max_depth",
+            "depth_span",
+            "num_depth_levels",
+            "ID",
+            "Type",
+            "OriginalReference",
+            "InvestigationDate",
+            "TotalDepth",
+            "PublishedDate",
+            "Coordinate System",
+            "Latitude",
+            "Longitude" "URL",
+            "spt_vs_correlation_and_vs30_correlation",
+        ]
+    )
     try:
         dummy_df.query(query)
     except (
-            ValueError,
-            SyntaxError,
-            UnboundLocalError,
-            pd.errors.UndefinedVariableError,
+        ValueError,
+        SyntaxError,
+        UnboundLocalError,
+        pd.errors.UndefinedVariableError,
     ) as e:
         return flask.render_template("error.html", error=e)
     return ""
