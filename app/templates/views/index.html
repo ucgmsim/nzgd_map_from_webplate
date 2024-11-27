@@ -12,7 +12,7 @@ Hello World
 <!-- Form to allow user input for filtering data -->
 <form method="GET" action="{{url_for('views.index')}}">
     <!-- Text input for a custom query, passed as the 'query' parameter in the URL -->
-<input name='query' hx-get="/validate" hx-trigger="keyup delay:300ms changed" hx-target="#error" placeholder='Input your pandas-compatible search query' value="{{query or ''}}"></input>
+<input name='query' hx-get="/validate" hx-trigger="keyup delay:300ms changed" hx-target="#error" placeholder='Input your pandas-compatible search query' value="{{query or ''}}">
 
     <!-- Dropdown to select an intensity measure -->
     <label for="intensity_measure">Select an intensity measure</label>
