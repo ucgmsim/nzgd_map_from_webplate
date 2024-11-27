@@ -1,12 +1,12 @@
 {% extends "base.html" %}
  
 {% block title %}
-Hello World
+SPT data
 {% endblock %}
  
 {% block content %}
 <section>
-    <h1>Map of Intensity Measures</h1>
+    <h1>SPT data</h1>
 </section>
 
 <!-- Form to allow user input for filtering data -->
@@ -15,7 +15,7 @@ Hello World
 <input name='query' hx-get="/validate" hx-trigger="keyup delay:300ms changed" hx-target="#error" placeholder='Input your pandas-compatible search query' value="{{query or ''}}">
 
     <!-- Dropdown to select an intensity measure -->
-    <label for="intensity_measure">Select an intensity measure</label>
+    <label for="intensity_measure">Select a correlation option</label>
     <select name="intensity_measure">
         <!-- Populate dropdown options dynamically from the list of intensity measures -->
         {% for im in intensity_measures %}

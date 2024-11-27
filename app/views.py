@@ -14,45 +14,31 @@ def index() -> str:
     instance_path = Path(flask.current_app.instance_path)
 
     # Load intensity measures data from a Parquet file
-    df = (
-        pd.read_parquet(instance_path / "intensity_measures.parquet")
-        .reset_index()  # Ensure a clean index for later operations
-        .set_index(["station"])  # Set 'station' as the index for easier merging
-    )
+    df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
+
 
     # Extract unique intensity measures for UI dropdown or selection
-    intensity_measures = df["intensity_measure"].unique()
+    intensity_measures = df["spt_vs_correlation_and_vs30_correlation"].unique()
 
     # Retrieve selected intensity measure or default to "PGA"
     im = flask.request.args.get(
         "intensity_measure",
-        default="PGA",  # Default value if no query parameter is provided
+        default="brandenberg_2010_boore_2011",  # Default value if no query parameter is provided
     )
 
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
     # Filter the dataframe for the selected intensity measure
-    df = df[df["intensity_measure"] == im]
-
-    # Load station location data from a text file
-    locations = pd.read_csv(
-        instance_path / "stations.ll",
-        sep=r"\s+",  # Handle whitespace-delimited file
-        header=None,  # File does not have a header row
-        names=["longitude", "latitude", "station"],  # Assign column names
-    ).set_index("station")  # Set 'station' as index for merging
-
-    # Join location data with intensity measure data
-    df = df.join(locations)
+    #df = df[df["intensity_measure"] == im]
 
     # Apply custom query filtering if provided
     if query:
         df = df.query(query)
 
     # Calculate the center of the map for visualization
-    centre_lat = df["latitude"].mean()
-    centre_lon = df["longitude"].mean()
+    centre_lat = df["Latitude"].mean()
+    centre_lon = df["Longitude"].mean()
 
     # Add a constant size column for consistent marker sizes in the map
     df["size"] = 0.5
@@ -60,20 +46,24 @@ def index() -> str:
     # Create an interactive scatter map using Plotly
     im_map = px.scatter_map(
         df,
-        lat="latitude",  # Column specifying latitude
-        lon="longitude",  # Column specifying longitude
-        color="rotd50",  # Column specifying marker color
-        hover_name=df.index,  # What to display when hovering over a marker
+        lat="Latitude",  # Column specifying latitude
+        lon="Longitude",  # Column specifying longitude
+        color="Vs30",  # Column specifying marker color
+        hover_name=df["record_name"],
+        zoom=5,# What to display when hovering over a marker
         hover_data={
-            "rotd50": ":.2e",  # Format numerical values in scientific notation
-            "rotd100": ":.2e",
-            "000": ":.2e",
-            "090": ":.2e",
-            "ver": ":.2e",
+            "Vs30": ":.2f",  # Format numerical values in scientific notation
+            "Vs30_sd": ":.2f",
+            "min_depth": ":.2f",
+            "max_depth": ":.2f",
+            "depth_span": ":.2f",
+            "num_depth_levels": ":.1f",
+            "size": False,  # Exclude size from hover data
         },
         size="size",  # Marker size
         center={"lat": centre_lat, "lon": centre_lon},  # Map center
     )
+
 
     # Render the map and data in an HTML template
     return flask.render_template(
@@ -97,18 +87,29 @@ def validate():
 
     # Create a dummy dataframe to ensure the column names are present
     dummy_df = pd.DataFrame(
-        columns=[
-            "station",
-            "latitude",
-            "longitude",
-            "000",
-            "090",
-            "ver",
-            "geom",
-            "rotd50",
-            "rotd100",
-        ]
-    )
+        columns=["record_name",
+                 "error",
+                 "Vs30",
+                 "Vs30_sd",
+                 "spt_vs_correlation",
+                 "vs30_correlation",
+                 "used_soil_info",
+                 "hammer_type", "borehole_diameter",
+                 "min_depth",
+                 "max_depth",
+                 "depth_span",
+                 "num_depth_levels",
+                 "ID",
+                 "Type",
+                 "OriginalReference",
+                 "InvestigationDate",
+                 "TotalDepth",
+                 "PublishedDate",
+                 "Coordinate System",
+                 "Latitude",
+                 "Longitude"
+                 "URL",
+                 "spt_vs_correlation_and_vs30_correlation"])
     try:
         dummy_df.query(query)
     except (
