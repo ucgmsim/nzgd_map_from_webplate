@@ -17,8 +17,6 @@ def spt_record(record_name: int) -> str:
 
     vs30_df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
 
-
-
     all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
 
     all_spt_df["record_name"] = "BH_" + all_spt_df["NZGD_ID"].astype(str)
@@ -69,12 +67,12 @@ def index() -> str:
     # Load intensity measures data from a Parquet file
     df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
 
-    # Extract unique intensity measures for UI dropdown or selection
-    intensity_measures = df["spt_vs_correlation_and_vs30_correlation"].unique()
+    # Correlations for UI dropdown or selection
+    correlations = df["spt_vs_correlation_and_vs30_correlation"].unique()
 
     # Retrieve selected intensity measure or default to "PGA"
-    im = flask.request.args.get(
-        "intensity_measure",
+    correlation = flask.request.args.get(
+        "correlation",
         default="brandenberg_2010_boore_2011",  # Default value if no query parameter is provided
     )
     colour_by = flask.request.args.get(
@@ -85,13 +83,11 @@ def index() -> str:
     query = flask.request.args.get("query", default=None)
 
     # Filter the dataframe for the selected spt_vs_correlation_and_vs30_correlation
-    df = df[df["spt_vs_correlation_and_vs30_correlation"] == im]
+    df = df[df["spt_vs_correlation_and_vs30_correlation"] == correlation]
 
     # Apply custom query filtering if provided
-    print(df[df["record_name"] == "BH_16467"])
     if query:
         df = df.query(query)
-    print(df[df["record_name"] == "BH_16467"])
 
     # Calculate the center of the map for visualization
     centre_lat = df["latitude"].mean()
@@ -129,17 +125,20 @@ def index() -> str:
             include_plotlyjs=False,  # Exclude Plotly.js library (assume it's loaded separately)
             default_height="85vh",  # Set the map height
         ),
-        selected_im=im,  # Pass the selected intensity measure for the template
+        selected_correlation=correlation,  # Pass the selected correlation for the template
         query=query,  # Pass the query back for persistence in UI
-        intensity_measures=intensity_measures,  # Pass all intensity measures for UI dropdown
+        correlations=correlations,  # Pass all correlations for UI dropdown
         colour_by=colour_by,
         colour_variables=[
-            ("vs30", "vs30"),
-            ("vs30_std", "Vs30 Standard Deviation"),
-            ("min_depth", "Minimum Depth"),
+            ("Vs30_from_data", "vs30 from data"),
+            ("Vs30_std_from_data", "Vs30 standard deviation from data"),
+            ("vs30_log_residual", "log residual with Foster et al. (2019)"),
             ("max_depth", "Maximum Depth"),
-            ("depth_span", "Depth Span"),
+            ("foster_2019_vs30", "Vs30 from Foster et al. (2019)"),
+            ("foster_2019_vs30_std", "Vs30 standard deviation from Foster et al. (2019)"),
+            ("min_depth", "Minimum Depth"),
             ("num_depth_levels", "Number of Depth Levels"),
+            ("depth_span", "Depth Span")
         ],
     )
 
@@ -181,7 +180,7 @@ def validate():
             "depth_span",
             "num_depth_levels",
             "spt_vs_correlation_and_vs30_correlation",
-            "log_vs30_from_data_minus_log_vs30_from_foster_2019",
+            "vs30_log_residual",
         ]
     )
     try:

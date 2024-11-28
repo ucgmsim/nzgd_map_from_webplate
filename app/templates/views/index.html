@@ -2,7 +2,7 @@
 {% block title %} SPT data {% endblock %}
 {% block content %}
 <section>
-    <h1>SPT data</h1>
+    <h1>SPT data extracted from NZGD borehole records</h1>
 </section>
 
 <!-- Form to allow user input for filtering data -->
@@ -19,19 +19,19 @@
     />
     <div id="error"></div>
 
-    <!-- Dropdown to select an intensity measure -->
-    <label id="query-label" for="intensity_measure"
+    <!-- Dropdown to select a correlation -->
+    <label id="query-label" for="correlation"
         >Select a correlation option</label
     >
-    <select id="query-input" name="intensity_measure">
-        <!-- Populate dropdown options dynamically from the list of intensity measures -->
-        {% for im in intensity_measures %}
-        <option value="{{im}}" {% if selected_im=="im" %}selected{% endif %}>
-            {{im}}
+    <select id="query-input" name="correlation">
+        <!-- Populate dropdown options dynamically from the list of correlations -->
+        {% for correlation in correlations %}
+        <option value="{{correlation}}" {% if selected_correlation=="correlation" %}selected{% endif %}>
+            {{correlation}}
         </option>
         {% endfor %}
     </select>
-    <label for="intensity_measure">Select a value to colour by</label>
+    <label for="correlation">Select a value to colour by</label>
     <select id="query-colour" name="colour_by">
         {% for column, label in colour_variables %}
         <option value="{{column}}" {% if column=="colour_by" %}selected{% endif %}> {{label}}</option>
