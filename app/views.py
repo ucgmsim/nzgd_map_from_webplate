@@ -1,43 +1,50 @@
 from pathlib import Path
 
 import flask
+import numpy as np
 import pandas as pd
 import plotly.express as px
-import numpy as np
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
 
 
 @bp.route("/spt/<record_name>", methods=["GET"])
-def spt_record(record_name: int) -> str:
+def spt_record(record_name: str) -> str:
+    """
+    Render the SPT record page for a given record name.
+
+    Parameters
+    ----------
+    record_name : str
+        The name of the record to display.
+
+    Returns
+    -------
+    str
+        The rendered HTML template for the SPT record page.
+    """
 
     link_to_extracted_spt_data = "https://quakecoresoft.canterbury.ac.nz/processed/spt/extracted_spt_data.parquet"
 
-    # default_correlation = "brandenberg_2010_boore_2004"
-
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
-    # Load intensity measures data from a Parquet file
 
-    vs30_df_all_records = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
-    record_details_df = vs30_df_all_records[vs30_df_all_records["record_name"] == record_name]
+    vs30_df_all_records = pd.read_parquet(
+        instance_path / "spt_vs30.parquet"
+    ).reset_index()
+    record_details_df = vs30_df_all_records[
+        vs30_df_all_records["record_name"] == record_name
+    ]
 
     record_details_df["estimation_number"] = np.arange(1, len(record_details_df) + 1)
-
-    # default_correlation = "brandenberg_2010_boore_2004"
-    # default_hammer_type = "Auto"  ## hammer_types = ["Auto", "Safety", "Standard"]
-    # record_details_df = vs30_df[(vs30_df["record_name"] == record_name) &
-    #                             (vs30_df["spt_vs_correlation_and_vs30_correlation"] == default_correlation) &
-    #                             (vs30_df["hammer_type"] == default_hammer_type)]
-    # record_details = record_details_df.to_dict(orient="records")[0]
 
     all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
 
     all_spt_df["record_name"] = "BH_" + all_spt_df["NZGD_ID"].astype(str)
 
     spt_df = all_spt_df[all_spt_df["record_name"] == record_name]
-    spt_df = spt_df.rename(columns={'N': 'Number of blows', 'Depth': 'Depth (m)'})
+    spt_df = spt_df.rename(columns={"N": "Number of blows", "Depth": "Depth (m)"})
     soil_types_as_str = []
     for soil_type in spt_df["Soil Type"]:
 
@@ -55,19 +62,19 @@ def spt_record(record_name: int) -> str:
 
     spt_df["soil_types_as_str"] = soil_types_as_str
 
-    spt_plot = px.line(
-        spt_df,
-        x="Number of blows",
-        y="Depth (m)")
+    spt_plot = px.line(spt_df, x="Number of blows", y="Depth (m)")
     # Invert the y-axis
-    spt_plot.update_layout(yaxis=dict(autorange='reversed'))
+    spt_plot.update_layout(yaxis=dict(autorange="reversed"))
 
     return flask.render_template(
         "views/spt_record.html",
-    record_details=record_details_df.to_dict(orient="records"), # Pass DataFrame as list of dictionaries)
-    spt_data=spt_df.to_dict(orient='records'),
-    spt_plot = spt_plot.to_html(),
-    link_to_extracted_spt_data = link_to_extracted_spt_data)
+        record_details=record_details_df.to_dict(
+            orient="records"
+        ),  # Pass DataFrame as list of dictionaries)
+        spt_data=spt_df.to_dict(orient="records"),
+        spt_plot=spt_plot.to_html(),
+        link_to_extracted_spt_data=link_to_extracted_spt_data,
+    )
 
 
 @bp.route("/", methods=["GET"])
@@ -137,7 +144,7 @@ def index() -> str:
     # Render the map and data in an HTML template
     return flask.render_template(
         "views/index.html",
-        date_of_last_nzgd_retrieval = date_of_last_nzgd_retrieval,
+        date_of_last_nzgd_retrieval=date_of_last_nzgd_retrieval,
         map=map.to_html(
             full_html=False,  # Embed only the necessary map HTML
             include_plotlyjs=False,  # Exclude Plotly.js library (assume it's loaded separately)
@@ -153,10 +160,13 @@ def index() -> str:
             ("vs30_log_residual", "log residual with Foster et al. (2019)"),
             ("max_depth", "Maximum Depth"),
             ("foster_2019_vs30", "Vs30 from Foster et al. (2019)"),
-            ("foster_2019_vs30_std", "Vs30 standard deviation from Foster et al. (2019)"),
+            (
+                "foster_2019_vs30_std",
+                "Vs30 standard deviation from Foster et al. (2019)",
+            ),
             ("min_depth", "Minimum Depth"),
             ("num_depth_levels", "Number of Depth Levels"),
-            ("depth_span", "Depth Span")
+            ("depth_span", "Depth Span"),
         ],
     )
 
