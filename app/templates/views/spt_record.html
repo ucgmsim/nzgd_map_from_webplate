@@ -1,29 +1,30 @@
 {% extends "base.html" %}
 
 {% block title %}
-SPT data for {{ record_id }}
+SPT data for {{ record_name }}
 {% endblock %}
 
 {% block content %}
-<h1>SPT data for {{ record_id }}</h1>
-    <a href="hypocentre location"></a>
-    <table>
-        <tr>
-            <th>Record ID</th>
-            <th>Depth</th>
-            <th>Blows</th>
-            <th>Friction</th>
-            <th>Groundwater</th>
-            <th>Soil Type</th>
-        </tr>
-        <tr>
-            <td>{{ record_id }}</td>
-            <td>{{ depth }}</td>
-            <td>{{ blows }}</td>
-            <td>{{ friction }}</td>
-            <td>{{ groundwater }}</td>
-            <td>{{ soil_type }}</td>
-        </tr>
-    </table>
+<h1> Overview of {{ record_name }}</h1>
+    <a href="{{ nzgd_url }}">View {{ record_name }} on the NZGD (NZGD log in required)</a>
+
+<table>
+    <tr>
+        <th>Depth (m)</th>
+        <th>Number of blows</th>
+        <th>Soil type</th>
+        <!-- Add more column headers as needed -->
+    </tr>
+    {% for row in spt_data %}
+    <tr>
+        <td>{{ row['Depth (m)'] }}</td>
+        <td>{{ row['Number of blows'] }}</td>
+        <td>{{ row['soil_types_as_str'] }}</td>
+        <!-- Add more columns as needed -->
+    </tr>
+    {% endfor %}
+</table>
+
+
     {{ spt_plot | safe }}
 {% endblock %}

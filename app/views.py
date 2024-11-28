@@ -10,7 +10,54 @@ bp = flask.Blueprint("views", __name__)
 
 @bp.route("/spt/<record_name>", methods=["GET"])
 def spt_record(record_name: int) -> str:
-    return ""
+
+    # Access the instance folder for application-specific data
+    instance_path = Path(flask.current_app.instance_path)
+    # Load intensity measures data from a Parquet file
+
+    vs30_df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
+
+
+
+    all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
+
+    all_spt_df["record_name"] = "BH_" + all_spt_df["NZGD_ID"].astype(str)
+
+    spt_df = all_spt_df[all_spt_df["record_name"] == record_name]
+    spt_df = spt_df.rename(columns={'N': 'Number of blows', 'Depth': 'Depth (m)'})
+    soil_types_as_str = []
+    for soil_type in spt_df["Soil Type"]:
+
+        if len(soil_type) > 0:
+            combined_soil_str = ""
+            for soil_str in soil_type:
+                combined_soil_str += soil_str + " + "
+
+            ## Remove the last "and" from the string
+            combined_soil_str = combined_soil_str.strip(" + ")
+            soil_types_as_str.append(combined_soil_str)
+
+        else:
+            soil_types_as_str.append(None)
+
+    spt_df["soil_types_as_str"] = soil_types_as_str
+
+    spt_plot = px.line(
+        spt_df,
+        x="Number of blows",
+        y="Depth (m)",
+        title=f"SPT plot for {record_name}",
+    )
+    # Invert the y-axis
+    spt_plot.update_layout(yaxis=dict(autorange='reversed'))
+
+    return flask.render_template(
+        "views/spt_record.html",
+    record_name=record_name,
+    spt_plot = spt_plot.to_html(),
+    nzgd_url=vs30_df[vs30_df["record_name"] == record_name]["nzgd_url"].values[0],
+    spt_data=spt_df.to_dict(orient='records') # Pass DataFrame as list of dictionaries
+    )
 
 
 @bp.route("/", methods=["GET"])
