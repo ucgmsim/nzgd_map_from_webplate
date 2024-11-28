@@ -132,8 +132,8 @@ def index() -> str:
         correlations=correlations,  # Pass all correlations for UI dropdown
         colour_by=colour_by,
         colour_variables=[
-            ("Vs30_from_data", "vs30 from data"),
-            ("Vs30_std_from_data", "Vs30 standard deviation from data"),
+            ("vs30_from_data", "vs30 from data"),
+            ("vs30_std_from_data", "Vs30 standard deviation from data"),
             ("vs30_log_residual", "log residual with Foster et al. (2019)"),
             ("max_depth", "Maximum Depth"),
             ("foster_2019_vs30", "Vs30 from Foster et al. (2019)"),
