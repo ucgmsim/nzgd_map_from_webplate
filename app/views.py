@@ -11,6 +11,9 @@ bp = flask.Blueprint("views", __name__)
 @bp.route("/spt/<record_name>", methods=["GET"])
 def spt_record(record_name: int) -> str:
 
+    link_to_pdf_prefix = Path("https://quakecoresoft.canterbury.ac.nz")
+    link_to_extracted_spt_data = link_to_pdf_prefix / "processed" / "spt" / "extracted_spt_data.parquet"
+
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
     # Load intensity measures data from a Parquet file
@@ -43,9 +46,7 @@ def spt_record(record_name: int) -> str:
     spt_plot = px.line(
         spt_df,
         x="Number of blows",
-        y="Depth (m)",
-        title=f"SPT plot for {record_name}",
-    )
+        y="Depth (m)")
     # Invert the y-axis
     spt_plot.update_layout(yaxis=dict(autorange='reversed'))
 
@@ -54,8 +55,9 @@ def spt_record(record_name: int) -> str:
     record_name=record_name,
     spt_plot = spt_plot.to_html(),
     nzgd_url=vs30_df[vs30_df["record_name"] == record_name]["nzgd_url"].values[0],
-    spt_data=spt_df.to_dict(orient='records') # Pass DataFrame as list of dictionaries
-    )
+    spt_data=spt_df.to_dict(orient='records'), # Pass DataFrame as list of dictionaries
+    link_to_pdf = link_to_pdf_prefix / vs30_df[vs30_df["record_name"] == record_name]["link_to_pdf"].values[0],
+    link_to_extracted_spt_data = link_to_extracted_spt_data)
 
 
 @bp.route("/", methods=["GET"])
@@ -97,7 +99,7 @@ def index() -> str:
     df["size"] = 0.5
 
     # Create an interactive scatter map using Plotly
-    im_map = px.scatter_map(
+    map = px.scatter_map(
         df,
         lat="latitude",  # Column specifying latitude
         lon="longitude",  # Column specifying longitude
@@ -120,7 +122,7 @@ def index() -> str:
     # Render the map and data in an HTML template
     return flask.render_template(
         "views/index.html",
-        map=im_map.to_html(
+        map=map.to_html(
             full_html=False,  # Embed only the necessary map HTML
             include_plotlyjs=False,  # Exclude Plotly.js library (assume it's loaded separately)
             default_height="85vh",  # Set the map height

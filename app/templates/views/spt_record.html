@@ -6,7 +6,14 @@ SPT data for {{ record_name }}
 
 {% block content %}
 <h1> Overview of {{ record_name }}</h1>
+
+    <h3> Downloads </h3>
+
+    <a href="{{ link_to_pdf }}">Download borehole investigation report for {{ record_name }} (pdf file)</a> <br>
+    <a href="{{ link_to_extracted_spt_data }}">Download all extracted SPT data (in one parquet file)</a> <br>
     <a href="{{ nzgd_url }}">View {{ record_name }} on the NZGD (NZGD log in required)</a>
+
+    <h3> SPT data extracted from borehole investigation report for {{ record_name }}</h3>
 
 <table>
     <tr>
@@ -25,6 +32,8 @@ SPT data for {{ record_name }}
     {% endfor %}
 </table>
 
-
+    <h3> Plot of SPT data extracted from borehole investigation report for {{ record_name }} </h3>
     {{ spt_plot | safe }}
 {% endblock %}
+
+
