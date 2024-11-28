@@ -1,19 +1,96 @@
 {% extends "base.html" %}
 
 {% block title %}
-SPT data for {{ record_name }}
+{{ record_details[0]["record_name"] }} SPT
 {% endblock %}
 
 {% block content %}
-<h1> Overview of {{ record_name }}</h1>
+<h1> Overview of {{ record_details[0]["record_name"] }} </h1>
 
-    <h3> Downloads </h3>
+<h3> Downloads </h3>
 
-    <a href="{{ link_to_pdf }}">Download borehole investigation report for {{ record_name }} (pdf file)</a> <br>
+    <a href="{{ record_details[0]["link_to_pdf"] }}">Download borehole investigation report for {{ record_name }} (pdf file)</a> <br>
     <a href="{{ link_to_extracted_spt_data }}">Download all extracted SPT data (in one parquet file)</a> <br>
-    <a href="{{ nzgd_url }}">View {{ record_name }} on the NZGD (NZGD log in required)</a>
+    <a href="{{ record_details[0]["nzgd_url"] }}">View {{ record_name }} on the NZGD (NZGD log in required)</a>
 
-    <h3> SPT data extracted from borehole investigation report for {{ record_name }}</h3>
+<h3> Investigation Details </h3>
+
+    <table>
+    <tr>
+        <th>Maximum depth (m)</th>
+        <th>Minimum depth (m)</th>
+        <th>Depth span (m)</th>
+        <th>Number of depth levels (m)</th>
+    </tr>
+    <tr>
+        <td> {{ record_details[0]["max_depth"] }} </td>
+        <td>{{ record_details[0]["min_depth"] }}</td>
+        <td>{{ record_details[0]["depth_span"] }}</td>
+        <td>{{ record_details[0]["num_depth_levels"] }}</td>
+    </tr>
+
+    <tr>
+        <th>Latitude</th>
+        <th>Longitude</th>
+        <th>Investigation date</th>
+        <th>Publication date</th>
+    </tr>
+    <tr>
+        <td> {{ record_details[0]["latitude"] }} </td>
+        <td>{{ record_details[0]["longitude"] }}</td>
+        <td>{{ record_details[0]["investigation_date"] }}</td>
+        <td>{{ record_details[0]["published_date"] }}</td>
+    </tr>
+
+    <tr>
+        <th>Region</th>
+        <th>District</th>
+        <th>City</th>
+        <th>Suburb</th>
+    </tr>
+    <tr>
+        <td> {{ record_details[0]["region"] }} </td>
+        <td>{{ record_details[0]["district"] }}</td>
+        <td>{{ record_details[0]["city"] }}</td>
+        <td>{{ record_details[0]["suburb"] }}</td>
+    </tr>
+
+
+</table>
+
+<h3> Vs30 estimates </h3>
+
+<table>
+    <tr>
+        <th>Estimation number</th>
+        <th>Vs30 (m/s)</th>
+        <th>Vs30 standard deviation (m/s)</th>
+        <th>Vs30 log residual with Foster et al. (2019)</th>
+        <th>SPT to Vs correlation</th>
+        <th>Vs to Vs30 correlation</th>
+        <th>Assumed hammer type</th>
+        <th>Calculation used soil information</th>
+        <!-- Add more column headers as needed -->
+    </tr>
+
+
+    {% for row in record_details %}
+    <tr>
+        <td>{{ row['estimation_number'] }} </td>
+        <td>{{ "%.2f" % row['vs30_from_data'] }} </td>
+        <td>{{ "%.2f" % row['vs30_std_from_data'] }}</td>
+        <td>{{ "%.2f" % row['vs30_log_residual'] }}</td>
+        <td>{{ row['spt_vs_correlation'] }}</td>
+        <td>{{ row['vs30_correlation'] }}</td>
+        <td>{{ row['hammer_type'] }}</td>
+        <td>{{ row['used_soil_info'] }}</td>
+        <!-- Add more columns as needed -->
+    </tr>
+    {% endfor %}
+</table>
+
+
+<h3> SPT data extracted from borehole investigation report for {{ record_name }}</h3>
 
 <table>
     <tr>

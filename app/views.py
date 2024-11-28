@@ -3,6 +3,7 @@ from pathlib import Path
 import flask
 import pandas as pd
 import plotly.express as px
+import numpy as np
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -11,14 +12,25 @@ bp = flask.Blueprint("views", __name__)
 @bp.route("/spt/<record_name>", methods=["GET"])
 def spt_record(record_name: int) -> str:
 
-    link_to_pdf_prefix = Path("https://quakecoresoft.canterbury.ac.nz")
-    link_to_extracted_spt_data = link_to_pdf_prefix / "processed" / "spt" / "extracted_spt_data.parquet"
+    link_to_extracted_spt_data = "https://quakecoresoft.canterbury.ac.nz/processed/spt/extracted_spt_data.parquet"
+
+    # default_correlation = "brandenberg_2010_boore_2004"
 
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
     # Load intensity measures data from a Parquet file
 
-    vs30_df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
+    vs30_df_all_records = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
+    record_details_df = vs30_df_all_records[vs30_df_all_records["record_name"] == record_name]
+
+    record_details_df["estimation_number"] = np.arange(1, len(record_details_df) + 1)
+
+    # default_correlation = "brandenberg_2010_boore_2004"
+    # default_hammer_type = "Auto"  ## hammer_types = ["Auto", "Safety", "Standard"]
+    # record_details_df = vs30_df[(vs30_df["record_name"] == record_name) &
+    #                             (vs30_df["spt_vs_correlation_and_vs30_correlation"] == default_correlation) &
+    #                             (vs30_df["hammer_type"] == default_hammer_type)]
+    # record_details = record_details_df.to_dict(orient="records")[0]
 
     all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
 
@@ -52,11 +64,9 @@ def spt_record(record_name: int) -> str:
 
     return flask.render_template(
         "views/spt_record.html",
-    record_name=record_name,
+    record_details=record_details_df.to_dict(orient="records"), # Pass DataFrame as list of dictionaries)
+    spt_data=spt_df.to_dict(orient='records'),
     spt_plot = spt_plot.to_html(),
-    nzgd_url=vs30_df[vs30_df["record_name"] == record_name]["nzgd_url"].values[0],
-    spt_data=spt_df.to_dict(orient='records'), # Pass DataFrame as list of dictionaries
-    link_to_pdf = link_to_pdf_prefix / vs30_df[vs30_df["record_name"] == record_name]["link_to_pdf"].values[0],
     link_to_extracted_spt_data = link_to_extracted_spt_data)
 
 
@@ -66,8 +76,13 @@ def index() -> str:
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
 
-    # Load intensity measures data from a Parquet file
+    with open(instance_path / "date_of_last_nzgd_retrieval.txt", "r") as file:
+        date_of_last_nzgd_retrieval = file.readline()
+
+    # Load the Vs30 values from a Parquet file
     df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
+    ## hammer_type has three options ("Auto", "Safety", "Standard") but we only need to use one for the map
+    df = df[df["hammer_type"] == "Auto"]
 
     # Correlations for UI dropdown or selection
     correlations = df["spt_vs_correlation_and_vs30_correlation"].unique()
@@ -122,6 +137,7 @@ def index() -> str:
     # Render the map and data in an HTML template
     return flask.render_template(
         "views/index.html",
+        date_of_last_nzgd_retrieval = date_of_last_nzgd_retrieval,
         map=map.to_html(
             full_html=False,  # Embed only the necessary map HTML
             include_plotlyjs=False,  # Exclude Plotly.js library (assume it's loaded separately)
