@@ -121,7 +121,7 @@ def index() -> str:
     ## Maker size values cannot include nans, so replace nans with 0.0
     df["size"] = df["vs30_log_residual"].abs().fillna(0.0)
 
-    marker_size_description_text = r"Marker size indicates Vs30 residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
+    marker_size_description_text = r"Marker size indicates the magnitude of the Vs30 log residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
 
     # Create an interactive scatter map using Plotly
     map = px.scatter_map(
