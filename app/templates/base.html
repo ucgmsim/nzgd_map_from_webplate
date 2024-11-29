@@ -10,6 +10,15 @@
     <script src="{{ url_for('static', filename='htmx.min.js.gz') }}"></script>
     <!-- Load Plotly -->
     <script src="{{ url_for('static', filename='plotly.min.js.gz') }}"></script>
+
+    <!-- Use MathJax  -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.addEventListener('load', function() {
+            MathJax.typeset();
+        });
+    </script>
+
     <link rel="stylesheet" href="https://unpkg.com/almond.css@latest/dist/almond.lite.min.css" />
     
     {% block scripts %}

@@ -59,6 +59,7 @@
 </table>
 
 <h3> Vs30 estimates </h3>
+<h5> Assuming a borehole diameter of 150 mm </h5>
 
 <table>
     <tr>
@@ -68,29 +69,29 @@
         <th>Vs30 log residual with Foster et al. (2019)</th>
         <th>SPT to Vs correlation</th>
         <th>Vs to Vs30 correlation</th>
+        <th>Calculation used soil type information</th>
         <th>Assumed hammer type</th>
-        <th>Calculation used soil information</th>
         <!-- Add more column headers as needed -->
     </tr>
 
 
     {% for row in record_details %}
     <tr>
-        <td>{{ row['estimation_number'] }} </td>
+        <td>{{ row['estimate_number'] }} </td>
         <td>{{ "%.2f" % row['vs30_from_data'] }} </td>
         <td>{{ "%.2f" % row['vs30_std_from_data'] }}</td>
         <td>{{ "%.2f" % row['vs30_log_residual'] }}</td>
         <td>{{ row['spt_vs_correlation'] }}</td>
         <td>{{ row['vs30_correlation'] }}</td>
-        <td>{{ row['hammer_type'] }}</td>
         <td>{{ row['used_soil_info'] }}</td>
+        <td>{{ row['hammer_type'] }}</td>
         <!-- Add more columns as needed -->
     </tr>
     {% endfor %}
 </table>
 
 
-<h3> SPT data extracted from borehole investigation report for {{ record_name }}</h3>
+<h3> SPT data extracted from borehole investigation report for {{ record_details[0]["record_name"] }}</h3>
 
 <table>
     <tr>
@@ -109,7 +110,7 @@
     {% endfor %}
 </table>
 
-    <h3> Plot of SPT data extracted from borehole investigation report for {{ record_name }} </h3>
+    <h3> Plot of SPT data extracted from borehole investigation report for {{ record_details[0]["record_name"] }} </h3>
     {{ spt_plot | safe }}
 {% endblock %}
 

@@ -4,6 +4,7 @@ import flask
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -37,7 +38,7 @@ def spt_record(record_name: str) -> str:
         vs30_df_all_records["record_name"] == record_name
     ]
 
-    record_details_df["estimation_number"] = np.arange(1, len(record_details_df) + 1)
+    record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
 
     all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
 
@@ -117,8 +118,10 @@ def index() -> str:
     centre_lat = df["latitude"].mean()
     centre_lon = df["longitude"].mean()
 
-    # Add a constant size column for consistent marker sizes in the map
-    df["size"] = 0.5
+    ## Maker size values cannot include nans, so replace nans with 0.0
+    df["size"] = df["vs30_log_residual"].abs().fillna(0.0)
+
+    marker_size_description_text = r"Marker size indicates Vs30 residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
 
     # Create an interactive scatter map using Plotly
     map = px.scatter_map(
@@ -138,8 +141,11 @@ def index() -> str:
             "size": False,  # Exclude size from hover data
         },
         size="size",  # Marker size
-        center={"lat": centre_lat, "lon": centre_lon},  # Map center
+        center={"lat": centre_lat, "lon": centre_lon}  # Map center
     )
+
+    log_resid_hist = px.histogram(df, x="vs30_log_residual")
+    hist_description_text = r"Distribution of Vs30 residuals, given by \(\mathrm{\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})} \)"
 
     # Render the map and data in an HTML template
     return flask.render_template(
@@ -168,6 +174,13 @@ def index() -> str:
             ("num_depth_levels", "Number of Depth Levels"),
             ("depth_span", "Depth Span"),
         ],
+        log_resid_hist=log_resid_hist.to_html(
+            full_html=False,  # Embed only the necessary map HTML
+            include_plotlyjs=False,  # Exclude Plotly.js library (assume it's loaded separately)
+            default_height="85vh",  # Set the map height
+            ),
+        marker_size_description_text=marker_size_description_text,
+        hist_description_text=hist_description_text,
     )
 
 

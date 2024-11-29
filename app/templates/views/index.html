@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %} SPT data {% endblock %}
+
 {% block content %}
 <section>
     <h1>SPT data extracted from NZGD borehole records</h1>
@@ -41,7 +42,7 @@
     <!-- Submit button to trigger a search -->
     <button id="query-button">Search</button>
 </form>
-
+<h4> {{ marker_size_description_text }} </h4>
 <!-- Section to render the Plotly map -->
 <section role="figure">
     {{map | safe}}
@@ -59,4 +60,13 @@
         });
     </script>
 </section>
+
+<h4> {{ hist_description_text }} </h4>
+
+<!-- Section to render the residual histogram -->
+<section role="figure">
+    {{log_resid_hist | safe}}
+    <!-- Render the Plotly map as raw HTML. 'safe' prevents auto-escaping of HTML content -->
+</section>
+
 {% endblock %}
