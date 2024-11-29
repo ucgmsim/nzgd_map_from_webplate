@@ -144,6 +144,12 @@ def index() -> str:
     log_resid_hist = px.histogram(df, x="vs30_log_residual")
     hist_description_text = r"Distribution of Vs30 residuals, given by \(\mathrm{\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})} \)"
 
+    all_df_column_names = df.columns.tolist()
+    col_names_to_exclude = ["index", "type", "link_to_pdf", "nzgd_url","size", "total_depth", "original_reference",
+                            "error_from_data"]
+    col_names_to_display = [col_name for col_name in all_df_column_names if col_name not in col_names_to_exclude]
+    col_names_to_display_str = ", ".join(col_names_to_display)
+
     # Render the map and data in an HTML template
     return flask.render_template(
         "views/index.html",
@@ -178,7 +184,7 @@ def index() -> str:
         ),
         marker_size_description_text=marker_size_description_text,
         hist_description_text=hist_description_text,
-    )
+        col_names_to_display = col_names_to_display_str)
 
 
 @bp.route("/validate", methods=["GET"])
