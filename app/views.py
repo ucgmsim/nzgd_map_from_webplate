@@ -130,18 +130,15 @@ def index() -> str:
         lon="longitude",  # Column specifying longitude
         color=colour_by,  # Column specifying marker color
         hover_name=df["record_name"],
-        zoom=5,  # What to display when hovering over a marker
+        zoom=5,
         hover_data={
-            "vs30_from_data": ":.2f",  # Format numerical values in scientific notation
-            "vs30_std_from_data": ":.2f",
-            "min_depth": ":.2f",
+            "vs30_from_data": ":.2f",
             "max_depth": ":.2f",
-            "depth_span": ":.2f",
-            "num_depth_levels": ":.1f",
+            "vs30_log_residual": ":.2f",
             "size": False,  # Exclude size from hover data
         },
         size="size",  # Marker size
-        center={"lat": centre_lat, "lon": centre_lon}  # Map center
+        center={"lat": centre_lat, "lon": centre_lon},  # Map center
     )
 
     log_resid_hist = px.histogram(df, x="vs30_log_residual")
@@ -178,7 +175,7 @@ def index() -> str:
             full_html=False,  # Embed only the necessary map HTML
             include_plotlyjs=False,  # Exclude Plotly.js library (assume it's loaded separately)
             default_height="85vh",  # Set the map height
-            ),
+        ),
         marker_size_description_text=marker_size_description_text,
         hist_description_text=hist_description_text,
     )
