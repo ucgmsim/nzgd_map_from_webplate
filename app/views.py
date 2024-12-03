@@ -63,7 +63,7 @@ def spt_record(record_name: str) -> str:
 
     spt_df["soil_types_as_str"] = soil_types_as_str
 
-    spt_plot = px.line(spt_df, x="Number of blows", y="Depth (m)")
+    spt_plot = px.line(spt_df, x="Number of blows", y="Depth (m)", line_shape="vhv")
     # Invert the y-axis
     spt_plot.update_layout(yaxis=dict(autorange="reversed"))
 
