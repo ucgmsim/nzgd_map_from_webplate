@@ -10,7 +10,6 @@
     <br>
     <br>
 
-
 </section>
 
 <!-- Form to allow user input for filtering data -->
@@ -81,13 +80,19 @@
     {{map | safe}}
     <!-- Render the Plotly map as raw HTML. 'safe' prevents auto-escaping of HTML content -->
     <script>
+        console.log(`TEST TEST TEST TEST TEST TEST TEST TEST`);
         var plot_element =
             document.getElementsByClassName("plotly-graph-div")[0];
         plot_element.on("plotly_click", function (data) {
             {
             var point = data.points[0];
                 if (point) {
-                 window.open(`{{url_for('views.spt_record', record_name='')}}/${point.hovertext}`, '_blank', 'noopener,noreferrer');
+                    if (point.hovertext.startsWith("BH")) {
+                        window.open(`{{url_for('views.spt_record', record_name='')}}/${point.hovertext}`, '_blank', 'noopener,noreferrer');
+                    }
+                    if (point.hovertext.startsWith("CPT") || point.hovertext.startsWith("SCPT")) {
+                        window.open(`{{url_for('views.cpt_record', record_name='')}}/${point.hovertext}`, '_blank', 'noopener,noreferrer');
+                    }
                 }
             }
         });

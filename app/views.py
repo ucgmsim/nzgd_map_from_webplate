@@ -72,6 +72,68 @@ def spt_record(record_name: str) -> str:
         spt_plot=spt_plot.to_html())
 
 
+@bp.route("/cpt/<record_name>", methods=["GET"])
+def cpt_record(record_name: str) -> str:
+    """
+    Render the SPT record page for a given record name.
+
+    Parameters
+    ----------
+    record_name : str
+        The name of the record to display.
+
+    Returns
+    -------
+    str
+        The rendered HTML template for the SPT record page.
+    """
+
+    # Access the instance folder for application-specific data
+    instance_path = Path(flask.current_app.instance_path)
+
+    vs30_df_all_records = pd.read_parquet(instance_path / "website_database.parquet").reset_index()
+    record_details_df = vs30_df_all_records[
+        vs30_df_all_records["record_name"] == record_name
+    ]
+
+    record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
+
+    all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
+
+    all_spt_df["record_name"] = "BH_" + all_spt_df["NZGD_ID"].astype(str)
+
+    spt_df = all_spt_df[all_spt_df["record_name"] == record_name]
+    spt_df = spt_df.rename(columns={"N": "Number of blows", "Depth": "Depth (m)"})
+    soil_types_as_str = []
+    for soil_type in spt_df["Soil Type"]:
+
+        if len(soil_type) > 0:
+            combined_soil_str = ""
+            for soil_str in soil_type:
+                combined_soil_str += soil_str + " + "
+
+            ## Remove the last "and" from the string
+            combined_soil_str = combined_soil_str.strip(" + ")
+            soil_types_as_str.append(combined_soil_str)
+
+        else:
+            soil_types_as_str.append(None)
+
+    spt_df["soil_types_as_str"] = soil_types_as_str
+
+    spt_plot = px.line(spt_df, x="Number of blows", y="Depth (m)", line_shape="vhv")
+    # Invert the y-axis
+    spt_plot.update_layout(yaxis=dict(autorange="reversed"))
+
+    return flask.render_template(
+        "views/spt_record.html",
+        record_details=record_details_df.to_dict(
+            orient="records"
+        ),  # Pass DataFrame as list of dictionaries)
+        spt_data=spt_df.to_dict(orient="records"),
+        spt_plot=spt_plot.to_html())
+
+
 @bp.route("/", methods=["GET"])
 def index() -> str:
     """Serve the standard index page."""
@@ -135,6 +197,18 @@ def index() -> str:
     ## Maker size values cannot include nans, so replace nans with 0.0
     df["size"] = df["vs30_log_residual"].abs().fillna(0.0)
 
+    # Define the shapes for each type
+    borehole_shape = "circle"
+    cpt_shape = "square"
+    scpt_shape = "diamond"
+
+    # Add the new column "shape" based on the conditions
+    df["shape"] = df["type"].map({
+        "Borehole": borehole_shape,
+        "CPT": cpt_shape,
+        "SCPT": scpt_shape
+    })
+
     num_records = len(df)
 
     marker_size_description_text = r"Marker size indicates the magnitude of the Vs30 log residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
@@ -147,14 +221,14 @@ def index() -> str:
         color=colour_by,  # Column specifying marker color
         hover_name=df["record_name"],
         zoom=5,
+        size="size",  # Marker size
+        center={"lat": centre_lat, "lon": centre_lon},  # Map center
         hover_data={
             "vs30": ":.2f",
             "max_depth": ":.2f",
             "vs30_log_residual": ":.2f",
             "size": False,  # Exclude size from hover data
-        },
-        size="size",  # Marker size
-        center={"lat": centre_lat, "lon": centre_lon},  # Map center
+        }
     )
 
     log_resid_hist = px.histogram(df, x="vs30_log_residual")
