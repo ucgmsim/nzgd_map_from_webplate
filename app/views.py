@@ -4,6 +4,8 @@ import flask
 import numpy as np
 import pandas as pd
 import plotly.express as px
+
+from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 # Create a Flask Blueprint for the views
@@ -36,7 +38,7 @@ def spt_record(record_name: str) -> str:
 
     record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
 
-    all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
+    all_spt_df = pd.read_parquet(instance_path / "extracted_spt_data.parquet").reset_index()
 
     all_spt_df["record_name"] = "BH_" + all_spt_df["NZGD_ID"].astype(str)
 
@@ -98,40 +100,35 @@ def cpt_record(record_name: str) -> str:
 
     record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
 
-    all_spt_df = pd.read_parquet(instance_path / "out.parquet").reset_index()
+    cpt_df = pd.read_parquet(instance_path / "extracted_cpt_and_scpt_data.parquet", filters=[("record_name", "==", record_name)]).reset_index()
+    cpt_df = cpt_df.sort_values(by="Depth")
 
-    all_spt_df["record_name"] = "BH_" + all_spt_df["NZGD_ID"].astype(str)
+# 'Depth', 'qc', 'fs', 'u'
+    fig = make_subplots(rows=1, cols=3)
 
-    spt_df = all_spt_df[all_spt_df["record_name"] == record_name]
-    spt_df = spt_df.rename(columns={"N": "Number of blows", "Depth": "Depth (m)"})
-    soil_types_as_str = []
-    for soil_type in spt_df["Soil Type"]:
+    fig.add_trace(go.Scatter(x=cpt_df["qc"], y=cpt_df["Depth"]), row=1, col=1)
+    fig.add_trace(go.Scatter(x=cpt_df["fs"], y=cpt_df["Depth"]), row=1, col=2)
+    fig.add_trace(go.Scatter(x=cpt_df["u"], y=cpt_df["Depth"]), row=1, col=3)
 
-        if len(soil_type) > 0:
-            combined_soil_str = ""
-            for soil_str in soil_type:
-                combined_soil_str += soil_str + " + "
+    # fig.update_yaxes(autorange="reversed", row=1, col=1)
+    # fig.update_yaxes(autorange="reversed", row=1, col=2)
+    # fig.update_yaxes(autorange="reversed", row=1, col=3)
 
-            ## Remove the last "and" from the string
-            combined_soil_str = combined_soil_str.strip(" + ")
-            soil_types_as_str.append(combined_soil_str)
+    fig.update_yaxes(title_text="Depth (m)", autorange="reversed", row=1, col=1)
+    fig.update_yaxes(title_text="Depth (m)", autorange="reversed", row=1, col=2)
+    fig.update_yaxes(title_text="Depth (m)", autorange="reversed", row=1, col=3)
 
-        else:
-            soil_types_as_str.append(None)
-
-    spt_df["soil_types_as_str"] = soil_types_as_str
-
-    spt_plot = px.line(spt_df, x="Number of blows", y="Depth (m)", line_shape="vhv")
-    # Invert the y-axis
-    spt_plot.update_layout(yaxis=dict(autorange="reversed"))
+    fig.update_xaxes(title_text=r"Cone resistance, qc (Mpa)", row=1, col=1)
+    fig.update_xaxes(title_text="Sleeve friction, fs (Mpa)", row=1, col=2)
+    fig.update_xaxes(title_text="Pore pressure, u2 (Mpa)", row=1, col=3)
 
     return flask.render_template(
-        "views/spt_record.html",
+        "views/cpt_record.html",
         record_details=record_details_df.to_dict(
             orient="records"
         ),  # Pass DataFrame as list of dictionaries)
-        spt_data=spt_df.to_dict(orient="records"),
-        spt_plot=spt_plot.to_html())
+        cpt_plot=fig.to_html()
+)
 
 
 @bp.route("/", methods=["GET"])
@@ -259,10 +256,11 @@ def index() -> str:
         num_records = num_records,
         colour_by=colour_by,
         colour_variables=[
-            ("vs30", "vs30 from data"),
-            ("vs30_std", "Vs30 standard deviation from data"),
+            ("vs30", "Inferred Vs30 from data"),
+            ("type_number_code","Type of record"),
             ("vs30_log_residual", "log residual with Foster et al. (2019)"),
             ("max_depth", "Maximum Depth"),
+            ("vs30_std", "Vs30 standard deviation inferred from data"),
             ("foster_2019_vs30", "Vs30 from Foster et al. (2019)"),
             (
                 "foster_2019_vs30_std",

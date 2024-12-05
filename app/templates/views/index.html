@@ -28,7 +28,7 @@
 
     <!-- Dropdown to select a vs30 correlation -->
     <label id="query-label" for="vs30_correlation"
-        >Select a vs30 correlation option</label>
+        >Select a Vs-Vs30 correlation option</label>
     <select id="query-input" name="vs30_correlation">
         <!-- Populate dropdown options dynamically from the list of vs30_correlations -->
         {% for vs30_correlation in vs30_correlations %}
@@ -80,7 +80,6 @@
     {{map | safe}}
     <!-- Render the Plotly map as raw HTML. 'safe' prevents auto-escaping of HTML content -->
     <script>
-        console.log(`TEST TEST TEST TEST TEST TEST TEST TEST`);
         var plot_element =
             document.getElementsByClassName("plotly-graph-div")[0];
         plot_element.on("plotly_click", function (data) {
