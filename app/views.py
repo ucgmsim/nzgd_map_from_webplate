@@ -26,14 +26,10 @@ def spt_record(record_name: str) -> str:
         The rendered HTML template for the SPT record page.
     """
 
-    link_to_extracted_spt_data = "https://quakecoresoft.canterbury.ac.nz/processed/spt/extracted_spt_data.parquet"
-
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
 
-    vs30_df_all_records = pd.read_parquet(
-        instance_path / "spt_vs30.parquet"
-    ).reset_index()
+    vs30_df_all_records = pd.read_parquet(instance_path / "website_database.parquet").reset_index()
     record_details_df = vs30_df_all_records[
         vs30_df_all_records["record_name"] == record_name
     ]
@@ -73,9 +69,7 @@ def spt_record(record_name: str) -> str:
             orient="records"
         ),  # Pass DataFrame as list of dictionaries)
         spt_data=spt_df.to_dict(orient="records"),
-        spt_plot=spt_plot.to_html(),
-        link_to_extracted_spt_data=link_to_extracted_spt_data,
-    )
+        spt_plot=spt_plot.to_html())
 
 
 @bp.route("/", methods=["GET"])
@@ -88,27 +82,32 @@ def index() -> str:
         date_of_last_nzgd_retrieval = file.readline()
 
     # Load the Vs30 values from a Parquet file
-    df = pd.read_parquet(instance_path / "spt_vs30.parquet").reset_index()
+    df = pd.read_parquet(instance_path / "website_database.parquet").reset_index()
+    df = df[df["record_type"] == "spt"]
     ## hammer_type has three options ("Auto", "Safety", "Standard") but we only need to use one for the map
-    df = df[df["hammer_type"] == "Auto"]
+    df = df[df["spt_hammer_type"] == "Auto"]
 
     # Correlations for UI dropdown or selection
-    correlations = df["spt_vs_correlation_and_vs30_correlation"].unique()
+    #correlations = df["spt_vs_correlation_and_vs30_correlation"].unique()
+    correlations = df["vs30_correlation"].unique()
 
     # Retrieve selected intensity measure or default to "PGA"
     correlation = flask.request.args.get(
         "correlation",
-        default="brandenberg_2010_boore_2011",  # Default value if no query parameter is provided
+        default="boore_2011",  # Default value if no query parameter is provided
     )
     colour_by = flask.request.args.get(
         "colour_by",
-        default="vs30_from_data",  # Default value if no query parameter is provided
+        default="vs30",  # Default value if no query parameter is provided
     )
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
+    df = df[df["spt_vs_correlation"] == "brandenberg_2010"]
+
     # Filter the dataframe for the selected spt_vs_correlation_and_vs30_correlation
-    df = df[df["spt_vs_correlation_and_vs30_correlation"] == correlation]
+    df = df[df["vs30_correlation"] == correlation]
+
 
     # Apply custom query filtering if provided
     if query:
@@ -132,7 +131,7 @@ def index() -> str:
         hover_name=df["record_name"],
         zoom=5,
         hover_data={
-            "vs30_from_data": ":.2f",
+            "vs30": ":.2f",
             "max_depth": ":.2f",
             "vs30_log_residual": ":.2f",
             "size": False,  # Exclude size from hover data
@@ -164,8 +163,8 @@ def index() -> str:
         correlations=correlations,  # Pass all correlations for UI dropdown
         colour_by=colour_by,
         colour_variables=[
-            ("vs30_from_data", "vs30 from data"),
-            ("vs30_std_from_data", "Vs30 standard deviation from data"),
+            ("vs30", "vs30 from data"),
+            ("vs30_std", "Vs30 standard deviation from data"),
             ("vs30_log_residual", "log residual with Foster et al. (2019)"),
             ("max_depth", "Maximum Depth"),
             ("foster_2019_vs30", "Vs30 from Foster et al. (2019)"),
