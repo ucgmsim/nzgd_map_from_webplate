@@ -33,30 +33,17 @@
     <select id="query-input" name="vs30_correlation">
         <!-- Populate dropdown options dynamically from the list of vs30_correlations -->
         {% for vs30_correlation in vs30_correlations %}
-        <option value="{{vs30_correlation}}" {% if selected_correlation=="vs30_correlation" %}selected{% endif %}>
+        <option value="{{vs30_correlation}}" {% if selected_vs30_correlation==vs30_correlation %}selected{% endif %}>
             {{vs30_correlation}}
         </option>
         {% endfor %}
     </select>
-
-    <!-- Dropdown to select a spt_vs_correlation -->
-    <label id="query-label" for="spt_vs_correlation"
-        >Select a SPT-Vs correlation option</label>
-    <select id="query-input" name="spt_vs_correlation">
-        <!-- Populate dropdown options dynamically from the list of vs30_correlations -->
-        {% for spt_vs_correlation in spt_vs_correlations %}
-        <option value="{{spt_vs_correlation}}" {% if selected_correlation=="vs30_correlation" %}selected{% endif %}>
-            {{vs30_correlation}}
-        </option>
-        {% endfor %}
-    </select>
-
 
 
     <label for="colour_by">Select a value to colour by</label>
     <select id="query-colour" name="colour_by">
         {% for column, label in colour_variables %}
-        <option value="{{column}}" {% if column=="colour_by" %}selected{% endif %}> {{label}}</option>
+        <option value="{{column}}" {% if column==colour_by %}selected{% endif %}> {{label}}</option>
         {% endfor %}
     </select>
     <!-- Submit button to trigger a search -->
