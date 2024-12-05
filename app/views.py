@@ -83,18 +83,32 @@ def index() -> str:
 
     # Load the Vs30 values from a Parquet file
     df = pd.read_parquet(instance_path / "website_database.parquet").reset_index()
-    df = df[df["record_type"] == "spt"]
     ## hammer_type has three options ("Auto", "Safety", "Standard") but we only need to use one for the map
-    df = df[df["spt_hammer_type"] == "Auto"]
+
 
     # vs30_correlations for UI dropdown or selection
     vs30_correlations = df["vs30_correlation"].unique()
+    spt_vs_correlations = df["spt_vs_correlation"].unique()
+    cpt_vs_correlations = df["cpt_vs_correlation"].unique()
 
-    # Retrieve selected intensity measure or default to "PGA"
+    # Retrieve selected vs30 correlation or default to "boore_2011"
     vs30_correlation = flask.request.args.get(
         "vs30_correlation",
         default="boore_2011",  # Default value if no query parameter is provided
     )
+
+    # Retrieve selected spt_vs_correlation or default to "boore_2011"
+    spt_vs_correlation = flask.request.args.get(
+        "spt_vs_correlation",
+        default="brandenberg_2010",  # Default value if no query parameter is provided
+    )
+
+    # Retrieve selected cpt_vs_correlation or default to "boore_2011"
+    cpt_vs_correlation = flask.request.args.get(
+        "cpt_vs_correlation",
+        default="andrus_2007_pleistocene",  # Default value if no query parameter is provided
+    )
+
     colour_by = flask.request.args.get(
         "colour_by",
         default="vs30",  # Default value if no query parameter is provided
@@ -102,11 +116,13 @@ def index() -> str:
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
-    df = df[df["spt_vs_correlation"] == "brandenberg_2010"]
-
     # Filter the dataframe for the selected spt_vs_correlation_and_vs30_correlation
     df = df[df["vs30_correlation"] == vs30_correlation]
 
+    spt_bool = (df["spt_vs_correlation"] == spt_vs_correlation) & (df["spt_hammer_type"] == "Auto")
+    cpt_bool = df["cpt_vs_correlation"] == cpt_vs_correlation
+
+    df = df[spt_bool | cpt_bool]
 
     # Apply custom query filtering if provided
     if query:
@@ -118,6 +134,8 @@ def index() -> str:
 
     ## Maker size values cannot include nans, so replace nans with 0.0
     df["size"] = df["vs30_log_residual"].abs().fillna(0.0)
+
+    num_records = len(df)
 
     marker_size_description_text = r"Marker size indicates the magnitude of the Vs30 log residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
 
@@ -158,8 +176,13 @@ def index() -> str:
             default_height="85vh",  # Set the map height
         ),
         selected_vs30_correlation=vs30_correlation,  # Pass the selected vs30_correlation for the template
+        selected_spt_vs_correlation=spt_vs_correlation,
+        selected_cpt_vs_correlation=cpt_vs_correlation,
         query=query,  # Pass the query back for persistence in UI
-        vs30_correlations=vs30_correlations,  # Pass all vs30_correlations for UI dropdown
+        vs30_correlations=vs30_correlations, # Pass all vs30_correlations for UI dropdown
+        spt_vs_correlations=spt_vs_correlations,
+        cpt_vs_correlations=cpt_vs_correlations,
+        num_records = num_records,
         colour_by=colour_by,
         colour_variables=[
             ("vs30", "vs30 from data"),
@@ -193,37 +216,15 @@ def validate():
 
     # Create a dummy dataframe to ensure the column names are present
     dummy_df = pd.DataFrame(
-        columns=[
-            "record_name",
-            "type",
-            "original_reference",
-            "investigation_date",
-            "total_depth",
-            "published_date",
-            "latitude",
-            "longitude",
-            "nzgd_url",
-            "region",
-            "district",
-            "city",
-            "suburb",
-            "foster_2019_vs30",
-            "foster_2019_vs30_std",
-            "error_from_data",
-            "vs30_from_data",
-            "vs30_std_from_data",
-            "spt_vs_correlation",
-            "vs30_correlation",
-            "used_soil_info",
-            "hammer_type",
-            "borehole_diameter",
-            "min_depth",
-            "max_depth",
-            "depth_span",
-            "num_depth_levels",
-            "spt_vs_correlation_and_vs30_correlation",
-            "vs30_log_residual",
-        ]
+        columns=['record_name', 'type', 'original_reference', 'investigation_date',
+       'total_depth', 'published_date', 'latitude', 'longitude', 'region',
+       'district', 'city', 'suburb', 'foster_2019_vs30',
+       'foster_2019_vs30_std', 'raw_file_links', 'processed_file_links',
+       'record_type', 'processing_error', 'max_depth', 'min_depth',
+       'depth_span', 'num_depth_levels', 'vs30', 'vs30_std',
+       'vs30_correlation', 'cpt_vs_correlation', 'spt_vs_correlation',
+       'spt_used_soil_info', 'spt_hammer_type', 'spt_borehole_diameter',
+       'vs30_log_residual']
     )
     try:
         dummy_df.query(query)

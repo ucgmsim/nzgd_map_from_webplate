@@ -40,6 +40,31 @@
     </select>
 
 
+    <!-- Dropdown to select a spt_vs_correlation -->
+    <label id="query-label_spt" for="spt_vs_correlation"
+        >Select a SPT-Vs correlation option</label>
+    <select id="query-input" name="spt_vs_correlation">
+        <!-- Populate dropdown options dynamically from the list of vs30_correlations -->
+        {% for spt_vs_correlation in spt_vs_correlations %}
+        <option value="{{spt_vs_correlation}}" {% if selected_spt_vs_correlation== spt_vs_correlation %}selected{% endif %}>
+            {{spt_vs_correlation}}
+        </option>
+        {% endfor %}
+    </select>
+
+    <!-- Dropdown to select a cpt_vs_correlation -->
+    <label id="query-label_spt" for="cpt_vs_correlation"
+        >Select a CPT-Vs correlation option</label>
+    <select id="query-input" name="cpt_vs_correlation">
+        <!-- Populate dropdown options dynamically from the list of vs30_correlations -->
+        {% for cpt_vs_correlation in cpt_vs_correlations %}
+        <option value="{{cpt_vs_correlation}}" {% if selected_cpt_vs_correlation == cpt_vs_correlation %}selected{% endif %}>
+            {{cpt_vs_correlation}}
+        </option>
+        {% endfor %}
+    </select>
+
+
     <label for="colour_by">Select a value to colour by</label>
     <select id="query-colour" name="colour_by">
         {% for column, label in colour_variables %}
@@ -49,7 +74,8 @@
     <!-- Submit button to trigger a search -->
     <button id="query-button">Search</button>
 </form>
-<h4> {{ marker_size_description_text }} </h4>
+<h4> Showing {{ num_records }} records </h4>
+<h5> {{ marker_size_description_text }} </h5>
 <!-- Section to render the Plotly map -->
 <section role="figure">
     {{map | safe}}
