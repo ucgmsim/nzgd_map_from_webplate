@@ -52,7 +52,7 @@
     </select>
 
     <!-- Dropdown to select a cpt_vs_correlation -->
-    <label id="query-label_spt" for="cpt_vs_correlation"
+    <label id="query-label_cpt" for="cpt_vs_correlation"
         >Select a CPT-Vs correlation option</label>
     <select id="query-input" name="cpt_vs_correlation">
         <!-- Populate dropdown options dynamically from the list of vs30_correlations -->
@@ -63,15 +63,27 @@
         {% endfor %}
     </select>
 
-
+    <!-- Dropdown to select a parameter to colour points by on the map -->
     <label for="colour_by">Select a value to colour by</label>
     <select id="query-colour" name="colour_by">
         {% for column, label in colour_variables %}
         <option value="{{column}}" {% if column==colour_by %}selected{% endif %}> {{label}}</option>
         {% endfor %}
     </select>
+
+    <!-- Dropdown to select a parameter to plot as a histogram -->
+    <label id="hist-by-query" for="hist_by"
+        >Select a parameter to plot as a histogram</label>
+    <select id="hist-by-query" name="hist_by">
+        <!-- Populate dropdown options dynamically from the list of colour_by options -->
+        {% for column, label in colour_variables %}
+        <option value="{{column}}" {% if column==hist_by %}selected{% endif %}> {{label}}</option>
+        {% endfor %}
+    </select>
+
+
     <!-- Submit button to trigger a search -->
-    <button id="query-button">Search</button>
+    <button id="query-button">Update selection</button>
 </form>
 <h4> Showing {{ num_records }} records </h4>
 <h5> {{ marker_size_description_text }} </h5>
@@ -98,11 +110,11 @@
     </script>
 </section>
 
-<h4> {{ hist_description_text }} </h4>
+<h4>{{ hist_description_text }}</h4>
+<h4>{{ residual_description_text }}</h4>
 
-<!-- Section to render the residual histogram -->
 <section role="figure">
-    {{log_resid_hist | safe}}
+    {{hist_plot | safe}}
     <!-- Render the Plotly map as raw HTML. 'safe' prevents auto-escaping of HTML content -->
 </section>
 
