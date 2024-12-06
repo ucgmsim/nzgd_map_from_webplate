@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ record_details[0]["record_name"] }}
+{% endblock %}
+
+{% block content %}
+<h1> Overview of {{ record_details[0]["record_name"] }} </h1>
+
+<h3> Downloads </h3>
+
+<h4> NZGD data files </h4>
+    {% for link in record_details[0]["raw_file_links"] %}
+
+    <a href="{{ link }}"> {{ link.split("/")[-1] }}</a> <br>
+
+    {% endfor %}
+
+<h4> Extracted data </h4>
+
+    {% for link in record_details[0]["processed_file_links"] %}
+
+    <a href="{{ link }}"> {{ link.split("/")[-1] }}</a> <br>
+
+    {% endfor %}
+
+
+<h3> Investigation Details </h3>
+
+    <table>
+    <tr>
+        <th>Maximum depth (m)</th>
+        <th>Minimum depth (m)</th>
+        <th>Depth span (m)</th>
+        <th>Number of depth levels (m)</th>
+    </tr>
+    <tr>
+        <td> {{ record_details[0]["max_depth"] }} </td>
+        <td>{{ record_details[0]["min_depth"] }}</td>
+        <td>{{ record_details[0]["depth_span"] }}</td>
+        <td>{{ record_details[0]["num_depth_levels"] }}</td>
+    </tr>
+
+    <tr>
+        <th>Latitude</th>
+        <th>Longitude</th>
+        <th>Investigation date</th>
+        <th>Publication date</th>
+    </tr>
+    <tr>
+        <td> {{ record_details[0]["latitude"] }} </td>
+        <td>{{ record_details[0]["longitude"] }}</td>
+        <td>{{ record_details[0]["investigation_date"] }}</td>
+        <td>{{ record_details[0]["published_date"] }}</td>
+    </tr>
+
+    <tr>
+        <th>Region</th>
+        <th>District</th>
+        <th>City</th>
+        <th>Suburb</th>
+    </tr>
+    <tr>
+        <td> {{ record_details[0]["region"] }} </td>
+        <td>{{ record_details[0]["district"] }}</td>
+        <td>{{ record_details[0]["city"] }}</td>
+        <td>{{ record_details[0]["suburb"] }}</td>
+    </tr>
+
+
+</table>
+
+<h3> Vs30 estimates </h3>
+<h5> Assuming a borehole diameter of 150 mm </h5>
+
+<table>
+    <tr>
+        <th>Estimation number</th>
+        <th>Vs30 (m/s)</th>
+        <th>Vs30 standard deviation (m/s)</th>
+        <th>Vs30 log residual with Foster et al. (2019)</th>
+        <th>SPT to Vs correlation</th>
+        <th>Vs to Vs30 correlation</th>
+        <!-- Add more column headers as needed -->
+    </tr>
+
+
+    {% for row in record_details %}
+    <tr>
+        <td>{{ row['estimate_number'] }} </td>
+        <td>{{ "%.2f" % row['vs30'] }} </td>
+        <td>{{ "%.2f" % row['vs30_std'] }}</td>
+        <td>{{ "%.2f" % row['vs30_log_residual'] }}</td>
+        <td>{{ row['cpt_vs_correlation'] }}</td>
+        <td>{{ row['vs30_correlation'] }}</td>
+        <!-- Add more columns as needed -->
+    </tr>
+    {% endfor %}
+</table>
+
+
+    <h3> Extracted CPT data of record {{ record_details[0]["record_name"] }} </h3>
+    {{ cpt_plot | safe }}
+{% endblock %}
+
+
