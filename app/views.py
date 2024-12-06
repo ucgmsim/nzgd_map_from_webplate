@@ -110,6 +110,7 @@ def cpt_record(record_name: str):
 
     record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
 
+    # Only load the CPT data for the selected record
     cpt_df = pd.read_parquet(
         instance_path / "extracted_cpt_and_scpt_data.parquet",
         filters=[("record_name", "==", record_name)],
