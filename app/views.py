@@ -132,6 +132,8 @@ def cpt_record(record_name: str):
     fig.update_xaxes(title_text="Sleeve friction, fs (Mpa)", row=1, col=2)
     fig.update_xaxes(title_text="Pore pressure, u2 (Mpa)", row=1, col=3)
 
+    fig.update_layout(showlegend=False)
+
     return flask.render_template(
         "views/cpt_record.html",
         record_details=record_details_df.to_dict(
