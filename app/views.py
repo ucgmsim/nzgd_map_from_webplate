@@ -55,12 +55,7 @@ def spt_record(record_name: str):
     for soil_type in spt_df["Soil Type"]:
 
         if len(soil_type) > 0:
-            combined_soil_str = ""
-            for soil_str in soil_type:
-                combined_soil_str += soil_str + " + "
-
-            ## Remove the last "and" from the string
-            combined_soil_str = combined_soil_str.strip(" + ")
+            combined_soil_str = " + ".join(soil_type)
             soil_types_as_str.append(combined_soil_str)
 
         else:
