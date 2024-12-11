@@ -103,6 +103,31 @@ def cpt_record(record_name: str):
         vs30_df_all_records["record_name"] == record_name
     ]
 
+    ## Only show Vs30 values for correlations that could be used given the depth of the record
+    max_depth_for_record = record_details_df["max_depth"].unique()[0]
+
+    if max_depth_for_record < 5:
+        vs30_correlation_explanation_text = (
+            f"Unable to estimate a Vs30 value from {record_name} as it has a maximum depth "
+            f"of {max_depth_for_record} m, while depths of at least 10 m and 5 m are required for "
+            "the Boore et al. (2004) and Boore et al. (2011) Vs to Vs30 correlations, respectively.")
+        show_vs30_values = False
+
+    elif 5 <= max_depth_for_record < 10:
+        vs30_correlation_explanation_text = (
+            f"{record_name} has a maximum depth of {max_depth_for_record} m so only the Boore et al. (2011) "
+            "Vs to Vs30 correlation can be used as it requires a depth of at least 5 m, while the "
+            "Boore et al. (2004) correlation requires a depth of at least 10 m.")
+        show_vs30_values = True
+        record_details_df = record_details_df[record_details_df["vs30_correlation"] == "boore_2011"]
+
+    else:
+        vs30_correlation_explanation_text = (
+            f"{record_name} has a maximum depth of {max_depth_for_record} m so both the Boore et al. (2004) "
+            "and Boore et al. (2011) Vs to Vs30 correlations can be used, as they require depths of at least "
+            "10 m and 5 m, respectively.")
+        show_vs30_values = True
+
     record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
 
     # Only load the CPT data for the selected record
@@ -135,6 +160,8 @@ def cpt_record(record_name: str):
             orient="records"
         ),  # Pass DataFrame as list of dictionaries
         cpt_plot=fig.to_html(),
+        vs30_correlation_explanation_text = vs30_correlation_explanation_text,
+        show_vs30_values=show_vs30_values
     )
 
 
@@ -214,6 +241,16 @@ def index() -> str:
     ## Map maker size values cannot include nans, so replace nans with 0.0
     database_df["size"] = database_df["vs30_log_residual"].abs().fillna(0.0)
     marker_size_description_text = r"Marker size indicates the magnitude of the Vs30 log residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
+
+    ## Make a new column for the Vs30 value to display in the hover text
+    # database_df["vs30_hover"] = database_df["vs30"].apply(
+    #     lambda x: "unable to estimate" if pd.isna(x) or x == 0 else f"{x:.2f}")
+    # database_df["vs30_log_residual_hover"] = database_df["vs30_log_residual"].apply(
+    #     lambda x: "unable to estimate" if pd.isna(x) or x == 0 else f"{x:.2f}")
+
+    database_df = database_df["type"=="CPT"]
+    database_df = database_df.iloc[0:1]
+    print()
 
     # Create an interactive scatter map using Plotly
     map = px.scatter_map(

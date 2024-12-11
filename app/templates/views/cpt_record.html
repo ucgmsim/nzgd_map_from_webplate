@@ -35,10 +35,10 @@
         <th>Number of depth levels (m)</th>
     </tr>
     <tr>
-        <td> {{ record_details[0]["max_depth"] }} </td>
-        <td>{{ record_details[0]["min_depth"] }}</td>
-        <td>{{ record_details[0]["depth_span"] }}</td>
-        <td>{{ record_details[0]["num_depth_levels"] }}</td>
+        <td> {{ "%.2f" % record_details[0]["max_depth"] }} </td>
+        <td>{{ "%.2f" % record_details[0]["min_depth"] }}</td>
+        <td>{{ "%.2f" % record_details[0]["depth_span"] }}</td>
+        <td>{{ "%.0f" % record_details[0]["num_depth_levels"] }}</td>
     </tr>
 
     <tr>
@@ -71,8 +71,8 @@
 </table>
 
 <h3> Vs30 estimates </h3>
-<h5> Assuming a borehole diameter of 150 mm </h5>
-
+<h5> {{ vs30_correlation_explanation_text }} </h5>
+{% if show_vs30_values %}
 <table>
     <tr>
         <th>Estimation number</th>
@@ -97,6 +97,7 @@
     </tr>
     {% endfor %}
 </table>
+{% endif %}
 
 
     <h3> Extracted CPT data of record {{ record_details[0]["record_name"] }} </h3>
