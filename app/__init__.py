@@ -9,9 +9,6 @@ def create_app(test_config: Any = None):
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
     app_path = Path(app.instance_path)
-    app.config.from_mapping(
-        DATABASE=app_path / "dataset.parquet",  # or an SQLite db, or SHP file, etc.
-    )
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
