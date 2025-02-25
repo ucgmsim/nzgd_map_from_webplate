@@ -12,6 +12,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import sqlite3
+
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -27,24 +29,24 @@ def index():
         date_of_last_nzgd_retrieval = file.readline()
 
     # Load the Vs30 values from a Parquet file
-    database_df = pd.read_parquet(
-        instance_path / "website_database.parquet"
-    ).reset_index()
+    # database_df = pd.read_parquet(
+    #     instance_path / "website_database.parquet"
+    # ).reset_index()
+
+    conn = sqlite3.connect(instance_path / 'test_andrew_spt_nzgd.db')
+
+    vs_to_vs30_correlation_df = pd.read_sql_query("SELECT * FROM vstovs30correlation", conn)
+    cpt_to_vs_correlation_df = pd.read_sql_query("SELECT * FROM cpttovscorrelation", conn)
 
     # Retrieve the available correlation options from the database dataframe to
     # populate the dropdowns in the user interface. Ignore None values.
-    vs30_correlations = [
-        x for x in database_df["vs30_correlation"].unique() if x is not None
-    ]
-    spt_vs_correlations = [
-        x for x in database_df["spt_vs_correlation"].unique() if x is not None
-    ]
-    cpt_vs_correlations = [
-        x for x in database_df["cpt_vs_correlation"].unique() if x is not None
-    ]
+    vs30_correlations = vs_to_vs30_correlation_df["name"].unique()
 
-    # Retrieve selected vs30 correlation. If no selection, default to "boore_2011"
-    vs30_correlation = flask.request.args.get("vs30_correlation", default="boore_2011")
+    spt_vs_correlations = ["test1", "test2"]
+    cpt_vs_correlations = cpt_to_vs_correlation_df["name"].unique()
+
+    # Retrieve selected vs30 correlation. If no selection, default to "boore_2004"
+    vs30_correlation = flask.request.args.get("vs30_correlation", default="boore_2004")
 
     # Retrieve selected spt_vs_correlation. If no selection, default to "brandenberg_2010"
     spt_vs_correlation = flask.request.args.get(
@@ -69,21 +71,62 @@ def index():
     query = flask.request.args.get("query", default=None)
 
     # Filter the dataframe for the selected vs30_correlation (applies to both CPT and SPT records)
-    database_df = database_df[database_df["vs30_correlation"] == vs30_correlation]
+    # database_df = database_df[database_df["vs30_correlation"] == vs30_correlation]
 
-    # Boolean masks for filtering the dataframe to only show the selected records on the map and histogram.
-    # Assume spt_hammer_type is "Auto" for SPT records.
-    spt_bool = (database_df["spt_vs_correlation"] == spt_vs_correlation) & (
-        database_df["spt_hammer_type"] == "Auto"
+    selected_column_value = colour_by
+    vs_to_vs30_correlation_id_value = int(
+        vs_to_vs30_correlation_df[vs_to_vs30_correlation_df["name"] == vs30_correlation][
+            "vs_to_vs30_correlation_id"].values[0])
+    cpt_to_vs_correlation_id_value = int(
+        cpt_to_vs_correlation_df[cpt_to_vs_correlation_df["name"] == cpt_vs_correlation][
+            "cpt_to_vs_correlation_id"].values[0])
+
+    sql_query = f"""
+    WITH filtered_data AS (
+        SELECT {selected_column_value}, nzgd_id, vs_to_vs30_correlation_id, cpt_to_vs_correlation_id, cpt_id
+        FROM cptvs30estimates
+        WHERE vs_to_vs30_correlation_id = {vs_to_vs30_correlation_id_value}  -- First filter
+    ), second_filter AS (
+        SELECT {selected_column_value}, nzgd_id, vs_to_vs30_correlation_id, cpt_to_vs_correlation_id, cpt_id
+        FROM filtered_data
+        WHERE cpt_to_vs_correlation_id = {cpt_to_vs_correlation_id_value}   -- Second filter
     )
-    cpt_bool = database_df["cpt_vs_correlation"] == cpt_vs_correlation
+    SELECT sf.*, n.*, cr.*
+    FROM second_filter AS sf
+    JOIN nzgdrecord AS n
+        ON sf.nzgd_id = n.nzgd_id
+    JOIN cptreport AS cr
+        ON sf.cpt_id = cr.cpt_id;
+    """
 
-    # Filter the dataframe to only show the selected records on the map and histogram
-    database_df = database_df[spt_bool | cpt_bool]
+    database_df = pd.read_sql_query(sql_query, conn)
+
+    print()
+    print()
+    print("database_cols:")
+    print(database_df.columns)
+    print()
+    print()
 
     # Apply custom query filtering if provided
     if query:
         database_df = database_df.query(query)
+
+    #########################################################################################
+
+    # Boolean masks for filtering the dataframe to only show the selected records on the map and histogram.
+    # Assume spt_hammer_type is "Auto" for SPT records.
+    # spt_bool = (database_df["spt_vs_correlation"] == spt_vs_correlation) & (
+    #     database_df["spt_hammer_type"] == "Auto"
+    # )
+    # cpt_bool = database_df["cpt_vs_correlation"] == cpt_vs_correlation
+
+    # Filter the dataframe to only show the selected records on the map and histogram
+    # database_df = database_df[spt_bool | cpt_bool]
+
+    # Apply custom query filtering if provided
+    # if query:
+    #     database_df = database_df.query(query)
 
     # Calculate the center of the map for visualization
     centre_lat = database_df["latitude"].mean()
