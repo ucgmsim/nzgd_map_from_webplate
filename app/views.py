@@ -13,6 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import sqlite3
+from . import query_sqlite_db
 
 
 # Create a Flask Blueprint for the views
@@ -37,13 +38,14 @@ def index():
 
     vs_to_vs30_correlation_df = pd.read_sql_query("SELECT * FROM vstovs30correlation", conn)
     cpt_to_vs_correlation_df = pd.read_sql_query("SELECT * FROM cpttovscorrelation", conn)
+    spt_to_vs_correlation_df = pd.read_sql_query("SELECT * FROM spttovscorrelation", conn)
 
     # Retrieve the available correlation options from the database dataframe to
     # populate the dropdowns in the user interface. Ignore None values.
     vs30_correlations = vs_to_vs30_correlation_df["name"].unique()
 
-    spt_vs_correlations = ["test1", "test2"]
     cpt_vs_correlations = cpt_to_vs_correlation_df["name"].unique()
+    spt_vs_correlations = spt_to_vs_correlation_df["name"].unique()
 
     # Retrieve selected vs30 correlation. If no selection, default to "boore_2004"
     vs30_correlation = flask.request.args.get("vs30_correlation", default="boore_2004")
@@ -61,52 +63,20 @@ def index():
     # Retrieve selected column to color by on the map. If no selection, default to "vs30".
     colour_by = flask.request.args.get("colour_by", default="vs30")
 
-    # Retrieve selected column to plot as a histogram. If no selection, default to "vs30_log_residual".
+    # Retrieve selected column to plot as a histogram. If no selection, default to "vs30_residual".
     hist_by = flask.request.args.get(
         "hist_by",
-        default="vs30_log_residual",  # Default value if no query parameter is provided
+        default="vs30_residual",  # Default value if no query parameter is provided
     )
 
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
-    # Filter the dataframe for the selected vs30_correlation (applies to both CPT and SPT records)
-    # database_df = database_df[database_df["vs30_correlation"] == vs30_correlation]
-
-    selected_column_value = colour_by
-    vs_to_vs30_correlation_id_value = int(
-        vs_to_vs30_correlation_df[vs_to_vs30_correlation_df["name"] == vs30_correlation][
-            "vs_to_vs30_correlation_id"].values[0])
-    cpt_to_vs_correlation_id_value = int(
-        cpt_to_vs_correlation_df[cpt_to_vs_correlation_df["name"] == cpt_vs_correlation][
-            "cpt_to_vs_correlation_id"].values[0])
-
-    sql_query = f"""
-    WITH filtered_data AS (
-        SELECT {selected_column_value}, nzgd_id, vs_to_vs30_correlation_id, cpt_to_vs_correlation_id, cpt_id
-        FROM cptvs30estimates
-        WHERE vs_to_vs30_correlation_id = {vs_to_vs30_correlation_id_value}  -- First filter
-    ), second_filter AS (
-        SELECT {selected_column_value}, nzgd_id, vs_to_vs30_correlation_id, cpt_to_vs_correlation_id, cpt_id
-        FROM filtered_data
-        WHERE cpt_to_vs_correlation_id = {cpt_to_vs_correlation_id_value}   -- Second filter
-    )
-    SELECT sf.*, n.*, cr.*
-    FROM second_filter AS sf
-    JOIN nzgdrecord AS n
-        ON sf.nzgd_id = n.nzgd_id
-    JOIN cptreport AS cr
-        ON sf.cpt_id = cr.cpt_id;
-    """
-
-    database_df = pd.read_sql_query(sql_query, conn)
-
-    print()
-    print()
-    print("database_cols:")
-    print(database_df.columns)
-    print()
-    print()
+    database_df = query_sqlite_db.extract_data(selected_vs30_correlation=vs30_correlation,
+                                               selected_cpt_to_vs_correlation=cpt_vs_correlation,
+                                               selected_spt_to_vs_correlation=spt_vs_correlation,
+                                               selected_hammer_type="Auto",
+                                               conn=conn)
 
     # Apply custom query filtering if provided
     if query:
@@ -114,59 +84,45 @@ def index():
 
     #########################################################################################
 
-    # Boolean masks for filtering the dataframe to only show the selected records on the map and histogram.
-    # Assume spt_hammer_type is "Auto" for SPT records.
-    # spt_bool = (database_df["spt_vs_correlation"] == spt_vs_correlation) & (
-    #     database_df["spt_hammer_type"] == "Auto"
-    # )
-    # cpt_bool = database_df["cpt_vs_correlation"] == cpt_vs_correlation
-
-    # Filter the dataframe to only show the selected records on the map and histogram
-    # database_df = database_df[spt_bool | cpt_bool]
-
-    # Apply custom query filtering if provided
-    # if query:
-    #     database_df = database_df.query(query)
-
     # Calculate the center of the map for visualization
     centre_lat = database_df["latitude"].mean()
     centre_lon = database_df["longitude"].mean()
 
     ## Make map marker sizes proportional to the absolute value of the Vs30 log residual.
     ## Map marker size values cannot include nans, so replace nans with 0.0
-    database_df["size"] = database_df["vs30_log_residual"].abs().fillna(0.0)
+    database_df["size"] = database_df["vs30_residual"].abs().fillna(0.0)
     marker_size_description_text = r"Marker size indicates the magnitude of the Vs30 log residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
 
     ## Make new columns of string values to display instead of the float values for Vs30 and log residual
     ## so that an explanation can be shown when the vs30 value or the log residual
     database_df["Vs30 (m/s)"] = database_df["vs30"]
-    database_df["Vs30_log_resid"] = database_df["vs30_log_residual"]
+    database_df["Vs30_log_resid"] = database_df["vs30_residual"]
     if vs30_correlation == "boore_2011":
         reason_text = "Unable to estimate as Boore et al. (2011) Vs to Vs30 correlation requires a depth of at least 5 m"
         min_required_depth = 5
     else:
         reason_text = "Unable to estimate as Boore et al. (2004) Vs to Vs30 correlation requires a depth of at least 10 m"
         min_required_depth = 10
-    database_df.loc[database_df["max_depth"] < min_required_depth, "Vs30 (m/s)"] = (
+    database_df.loc[database_df["deepest_depth"] < min_required_depth, "Vs30 (m/s)"] = (
         reason_text
     )
     database_df.loc[
-        (database_df["max_depth"] >= min_required_depth)
+        (database_df["deepest_depth"] >= min_required_depth)
         & (np.isnan(database_df["vs30"]) | (database_df["vs30"] == 0)),
         "Vs30 (m/s)",
     ] = "Vs30 calculation failed even though CPT depth is sufficient"
     database_df.loc[
-        (database_df["max_depth"] >= min_required_depth)
+        (database_df["deepest_depth"] >= min_required_depth)
         & ~(np.isnan(database_df["vs30"]) | (database_df["vs30"] == 0)),
         "Vs30 (m/s)",
     ] = database_df["vs30"].apply(lambda x: f"{x:.2f}")
-    database_df.loc[(np.isnan(database_df["vs30_log_residual"])), "Vs30_log_resid"] = (
+    database_df.loc[(np.isnan(database_df["vs30_residual"])), "Vs30_log_resid"] = (
         "Unavailable as Vs30 could not be calculated"
     )
-    database_df.loc[~(np.isnan(database_df["vs30_log_residual"])), "Vs30_log_resid"] = (
-        database_df["vs30_log_residual"].apply(lambda x: f"{x:.2f}")
+    database_df.loc[~(np.isnan(database_df["vs30_residual"])), "Vs30_log_resid"] = (
+        database_df["vs30_residual"].apply(lambda x: f"{x:.2f}")
     )
-    database_df["max_depth (m)"] = database_df["max_depth"]
+    database_df["deepest_depth (m)"] = database_df["deepest_depth"]
 
     # Create an interactive scatter map using Plotly
     map = px.scatter_map(
@@ -180,12 +136,12 @@ def index():
         center={"lat": centre_lat, "lon": centre_lon},  # Map center
         hover_data=OrderedDict(
             [  # Used to order the items in hover data (but lat and long are always first)
-                ("max_depth (m)", ":.2f"),
+                ("deepest_depth (m)", ":.2f"),
                 ("Vs30 (m/s)", True),
                 ("Vs30_log_resid", True),
                 ("size", False),
                 ("vs30", False),
-                ("vs30_log_residual", False),
+                ("vs30_residual", False),
             ]
         ),
     )
@@ -196,8 +152,8 @@ def index():
         f"Histogram of {hist_by}, showing {len(database_df)} records"
     )
 
-    # If plotting the vs30_log_residual, add a note about the log residual calculation
-    if hist_by == "vs30_log_residual":
+    # If plotting the vs30_residual, add a note about the log residual calculation
+    if hist_by == "vs30_residual":
         residual_description_text = r"Note: Vs30 residuals are given by \(\mathrm{\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})} \)"
     else:
         residual_description_text = ""
@@ -242,8 +198,8 @@ def index():
         colour_variables=[
             ("vs30", "Inferred Vs30 from data"),
             ("type_number_code", "Type of record"),
-            ("vs30_log_residual", "log residual with Foster et al. (2019)"),
-            ("max_depth", "Maximum Depth"),
+            ("vs30_residual", "log residual with Foster et al. (2019)"),
+            ("deepest_depth", "Maximum Depth"),
             ("vs30_std", "Vs30 standard deviation inferred from data"),
             ("foster_2019_vs30", "Vs30 from Foster et al. (2019)"),
             (
@@ -354,7 +310,7 @@ def cpt_record(record_name: str):
     ]
 
     ## Only show Vs30 values for correlations that could be used given the depth of the record
-    max_depth_for_record = record_details_df["max_depth"].unique()[0]
+    max_depth_for_record = record_details_df["deepest_depth"].unique()[0]
 
     if max_depth_for_record < 5:
         vs30_correlation_explanation_text = (
@@ -450,7 +406,7 @@ def validate():
             "processed_file_links",
             "record_type",
             "processing_error",
-            "max_depth",
+            "deepest_depth",
             "min_depth",
             "depth_span",
             "num_depth_levels",
@@ -462,7 +418,7 @@ def validate():
             "spt_used_soil_info",
             "spt_hammer_type",
             "spt_borehole_diameter",
-            "vs30_log_residual",
+            "vs30_residual",
         ]
     )
     try:
