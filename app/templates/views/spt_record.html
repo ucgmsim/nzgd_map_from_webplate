@@ -7,38 +7,23 @@
 {% block content %}
 <h1> Overview of {{ record_details[0]["record_name"] }} </h1>
 
-<h3> Downloads </h3>
-
-<h4> NZGD data files </h4>
-    {% for link in record_details[0]["raw_file_links"] %}
-
-    <a href="{{ link }}"> {{ link.split("/")[-1] }}</a> <br>
-
-    {% endfor %}
-
-<h4> Extracted data </h4>
-
-    {% for link in record_details[0]["processed_file_links"] %}
-
-    <a href="{{ link }}"> {{ link.split("/")[-1] }}</a> <br>
-
-    {% endfor %}
+    {{ spt_plot | safe }}
 
 
 <h3> Investigation Details </h3>
 
     <table>
     <tr>
-        <th>Maximum depth (m)</th>
-        <th>Minimum depth (m)</th>
-        <th>Depth span (m)</th>
-        <th>Number of depth levels (m)</th>
+        <th>Deepest depth (m)</th>
+        <th>Shallowest depth (m)</th>
+        <th>SPT efficiency</th>
+        <th>Borehole diameter</th>
     </tr>
     <tr>
-        <td> {{ record_details[0]["max_depth"] }} </td>
-        <td>{{ record_details[0]["min_depth"] }}</td>
-        <td>{{ record_details[0]["depth_span"] }}</td>
-        <td>{{ record_details[0]["num_depth_levels"] }}</td>
+        <td> {{ "%.2f"%(max_depth) }} </td>
+        <td>{{ "%.2f"%(min_depth) }}</td>
+        <td>{{ spt_efficiency }}</td>
+        <td>{{ spt_borehole_diameter }}</td>
     </tr>
 
     <tr>
@@ -66,7 +51,18 @@
         <td>{{ record_details[0]["city"] }}</td>
         <td>{{ record_details[0]["suburb"] }}</td>
     </tr>
-
+    <tr>
+        <th>Measured ground water level (m)</th>
+        <th>Model ground water level (m) </th>
+        <th>Model Vs30 (m/s)</th>
+        <th>Model Vs30 uncertainty</th>
+    </tr>
+    <tr>
+        <td> {{ measured_gwl }} </td>
+        <td>{{ model_gwl_westerhoff_2019 }}</td>
+        <td>{{ model_vs30_foster_2019 }}</td>
+        <td>{{ model_vs30_stddev_foster_2019 }}</td>
+    </tr>
 
 </table>
 
@@ -81,8 +77,9 @@
         <th>Vs30 log residual with Foster et al. (2019)</th>
         <th>SPT to Vs correlation</th>
         <th>Vs to Vs30 correlation</th>
-        <th>Calculation used soil type information</th>
         <th>Assumed hammer type</th>
+        <th>Calculation used soil type information</th>
+        <th> Calculation used SPT efficiency</th>
         <!-- Add more column headers as needed -->
     </tr>
 
@@ -91,12 +88,13 @@
     <tr>
         <td>{{ row['estimate_number'] }} </td>
         <td>{{ "%.2f" % row['vs30'] }} </td>
-        <td>{{ "%.2f" % row['vs30_std'] }}</td>
-        <td>{{ "%.2f" % row['vs30_log_residual'] }}</td>
-        <td>{{ row['spt_vs_correlation'] }}</td>
-        <td>{{ row['vs30_correlation'] }}</td>
-        <td>{{ row['spt_used_soil_info'] }}</td>
-        <td>{{ row['spt_hammer_type'] }}</td>
+        <td>{{ "%.2f" % row['vs30_stddev'] }}</td>
+        <td>{{ "%.2f" % row['vs30_residual'] }}</td>
+        <td>{{ row['spt_to_vs_correlation'] }}</td>
+        <td>{{ row['vs_to_vs30_correlation'] }}</td>
+        <td>{{ row['hammer_type'] }}</td>
+        <td>{{ spt_vs30_calculation_used_efficiency }}</td>
+        <td>{{ spt_vs30_calculation_used_soil_info }}</td>
         <!-- Add more columns as needed -->
     </tr>
     {% endfor %}
@@ -109,21 +107,40 @@
     <tr>
         <th>Depth (m)</th>
         <th>Number of blows</th>
-        <th>Soil type</th>
         <!-- Add more column headers as needed -->
     </tr>
     {% for row in spt_data %}
     <tr>
         <td>{{ row['Depth (m)'] }}</td>
         <td>{{ row['Number of blows'] }}</td>
-        <td>{{ row['soil_types_as_str'] }}</td>
         <!-- Add more columns as needed -->
     </tr>
     {% endfor %}
 </table>
 
-    <h3> Plot of SPT data extracted from borehole investigation report for {{ record_details[0]["record_name"] }} </h3>
-    {{ spt_plot | safe }}
+<h3> Soil type information from borehole for {{ record_details[0]["record_name"] }}</h3>
+
+<table>
+    <tr>
+        <th>Top depth (m)</th>
+        <th>Soil type</th>
+        <!-- Add more column headers as needed -->
+    </tr>
+    {% for row in soil_type %}
+    <tr>
+        <td>{{ row['top_depth'] }}</td>
+        <td>{{ row['soil_type'] }}</td>
+        <!-- Add more columns as needed -->
+    </tr>
+    {% endfor %}
+</table>
+
+<h3> Downloads </h3>
+
+    <a href="{{ url_str }}"> NZGD files</a> <br>
+    <a href="{{ url_for('views.download_spt_data', filename=record_details[0]["record_name"] + '_data.csv') }}">Extracted data</a><br>
+    <a href="{{ url_for('views.download_spt_soil_types', filename=record_details[0]["record_name"] + '_soil_types.csv') }}">Extracted soil types</a>
+
 {% endblock %}
 
 

@@ -459,6 +459,13 @@ def cpt_record(record_name: str):
 #     instance_path = Path(flask.current_app.instance_path)
 #     return flask.send_from_directory(instance_path, filename, as_attachment=True)
 
+def remove_file(file_path):
+    """Delete the specified file."""
+    try:
+        os.remove(file_path)
+        print(f"Deleting temporary file: {file_path}")
+    except OSError as e:
+        print(f"Error: {file_path} : {e.strerror}")
 
 @bp.route("/download_cpt_data/<filename>")
 def download_cpt_data(filename):
@@ -478,15 +485,62 @@ def download_cpt_data(filename):
 
     # Delete the temporary file after it has been downloaded
     @after_this_request
-    def remove_file(response):
-        try:
-            os.remove(file_path)
-            print(f"Deleting temporary file: {file_path}")
-        except OSError as e:
-            print(f"Error: {file_path} : {e.strerror}")
+    def remove_file_after_request(response):
+        remove_file(file_path)
         return response
 
     return response
+
+@bp.route("/download_spt_data/<filename>")
+def download_spt_data(filename):
+    """Serve a file from the instance path for download and delete it afterwards."""
+    instance_path = Path(flask.current_app.instance_path)
+
+    nzgd_id = int(filename.split('_')[1])
+    with sqlite3.connect(instance_path / "test_andrew_spt_nzgd.db") as conn:
+        spt_measurements_df = query_sqlite_db.spt_measurements_for_one_nzgd(nzgd_id, conn)
+
+    # Create a temporary CSV file containing the SPT data
+    spt_measurements_df[["n", "depth"]].to_csv(instance_path / filename, index=False)
+
+    # Download the temporary CSV file
+    file_path = instance_path / filename
+    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
+
+    # Delete the temporary file after it has been downloaded
+    @after_this_request
+    def remove_file_after_request(response):
+        remove_file(file_path)
+        return response
+
+    return response
+
+@bp.route("/download_spt_soil_types/<filename>")
+def download_spt_soil_types(filename):
+    """Serve a file from the instance path for download and delete it afterwards."""
+    instance_path = Path(flask.current_app.instance_path)
+
+    nzgd_id = int(filename.split('_')[1])
+    with sqlite3.connect(instance_path / "test_andrew_spt_nzgd.db") as conn:
+        spt_soil_types_df = query_sqlite_db.spt_soil_types_for_one_nzgd(nzgd_id, conn)
+
+    spt_soil_types_df.rename(columns={"top_depth": "depth at layer top (m)", "soil_type": "soil type"}, inplace=True)
+
+    # Create a temporary CSV file containing the SPT data
+    spt_soil_types_df[["depth at layer top (m)", "soil type"]].to_csv(instance_path / filename, index=False)
+
+    # Download the temporary CSV file
+    file_path = instance_path / filename
+    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
+
+    # Delete the temporary file after it has been downloaded
+    @after_this_request
+    def remove_file_after_request(response):
+        remove_file(file_path)
+        return response
+
+    return response
+
 
 @bp.route("/validate", methods=["GET"])
 def validate():
