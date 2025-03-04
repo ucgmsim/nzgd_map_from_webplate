@@ -7,6 +7,48 @@ import pandas as pd
 import sqlite3
 import time
 import numpy as np
+from pathlib import Path
+
+
+def clip_highest_and_lowest_percent(
+    data: pd.Series, lower_percent: float, upper_percent: float
+) -> pd.Series:
+    """
+    Clips the highest and lowest percent of values in a Pandas Series based on the specified quantiles.
+
+    Parameters
+    ----------
+    data : pd.Series
+        The data series to be clipped.
+    lower_percent : float
+        The lower percentile threshold (0-100).
+    upper_percent : float
+        The upper percentile threshold (0-100).
+
+    Returns
+    -------
+    pd.Series
+        The modified data series with values outside the specified quantiles replaced.
+    """
+    lower_quantile = data.quantile(lower_percent / 100)
+    upper_quantile = data.quantile(upper_percent / 100)
+
+    # Determine the maximum and minimum values within these quantiles
+    # Determine the maximum and minimum values within the specified quantiles
+    max_within_quantiles = data[
+        (data >= lower_quantile) & (data <= upper_quantile)
+    ].max()
+    min_within_quantiles = data[
+        (data >= lower_quantile) & (data <= upper_quantile)
+    ].min()
+
+    # Replace the values outside these quantiles
+    # Make a copy to avoid SettingWithCopyWarning
+    data = data.copy()
+    data.loc[data > upper_quantile] = max_within_quantiles
+    data.loc[data < lower_quantile] = min_within_quantiles
+
+    return data
 
 
 def all_vs30s_given_correlations(
@@ -128,7 +170,7 @@ def all_vs30s_given_correlations(
         + "_"
         + cpt_database_df["nzgd_id"].astype(str)
     )
-    cpt_database_df["vs30_residual"] = np.log(cpt_database_df["vs30"]) - np.log(
+    cpt_database_df["vs30_log_residual"] = np.log(cpt_database_df["vs30"]) - np.log(
         cpt_database_df["model_vs30_foster_2019"]
     )
     cpt_database_df["gwl_residual"] = (
@@ -200,10 +242,12 @@ def all_vs30s_given_correlations(
 
     # Rename and add columns needed for the web app
     spt_database_df.rename(columns={"spt_id": "nzgd_id"}, inplace=True)
-    spt_database_df["record_name"] = spt_database_df["type_prefix"].astype(
-        str
-    ) + spt_database_df["nzgd_id"].astype(str)
-    spt_database_df["vs30_residual"] = np.log(spt_database_df["vs30"]) - np.log(
+    spt_database_df["record_name"] = (
+        spt_database_df["type_prefix"].astype(str)
+        + "_"
+        + spt_database_df["nzgd_id"].astype(str)
+    )
+    spt_database_df["vs30_log_residual"] = np.log(spt_database_df["vs30"]) - np.log(
         spt_database_df["model_vs30_foster_2019"]
     )
     spt_database_df["gwl_residual"] = (
@@ -268,7 +312,8 @@ def cpt_measurements_for_one_nzgd(
     cptreport.nzgd_id
     FROM cptmeasurements
     JOIN cptreport ON cptmeasurements.cpt_id = cptreport.cpt_id
-    WHERE cptreport.nzgd_id = {selected_nzgd_id};"""
+    WHERE cptreport.nzgd_id = {selected_nzgd_id}
+    ORDER BY cptmeasurements.depth ASC;"""
 
     t1 = time.time()
     cpt_measurements_df = pd.read_sql_query(query, conn)
@@ -279,6 +324,69 @@ def cpt_measurements_for_one_nzgd(
     )
 
     return cpt_measurements_df
+
+
+def spt_measurements_for_one_nzgd(
+    selected_nzgd_id: int, conn: sqlite3.Connection
+) -> pd.DataFrame:
+    """
+    Extracts SPT measurements from the SQLite database for a given NZGD ID.
+
+    Parameters
+    ----------
+    selected_nzgd_id : int
+        The selected NZGD ID.
+    conn : sqlite3.Connection
+        The SQLite database connection.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the SPT.
+    """
+
+    query = f"""SELECT 
+    sptmeasurements.depth,
+    sptmeasurements.n,
+    sptmeasurements.borehole_id AS nzgd_id
+    FROM sptmeasurements
+    WHERE sptmeasurements.borehole_id = {selected_nzgd_id}
+    ORDER BY sptmeasurements.depth ASC;"""
+
+    t1 = time.time()
+    spt_measurements_df = pd.read_sql_query(query, conn)
+    t2 = time.time()
+
+    print(
+        f"Time to extract CPT measurements for cpt_id={selected_nzgd_id} from SQLite: {t2 - t1:.2f} s"
+    )
+
+    return spt_measurements_df
+
+
+def spt_soil_types_for_one_nzgd(
+    selected_nzgd_id: int, conn: sqlite3.Connection
+) -> pd.DataFrame:
+
+    query = f"""SELECT *
+FROM sptreport
+JOIN soilmeasurements ON soilmeasurements.report_id = sptreport.borehole_id
+JOIN soilmeasurementsoiltype ON soilmeasurementsoiltype.soil_measurement_id = soilmeasurements.measurement_id
+JOIN soiltypes ON soilmeasurementsoiltype.soil_type_id = soiltypes.id
+WHERE sptreport.borehole_id = {selected_nzgd_id}
+ORDER BY soilmeasurements.top_depth ASC;"""
+
+    t1 = time.time()
+    spt_soil_types_df = pd.read_sql_query(query, conn)
+    t2 = time.time()
+
+    spt_soil_types_df.rename(columns={"name": "soil_type"}, inplace=True)
+
+    print(
+        f"Time to extract SPT soil types for borehole_id={selected_nzgd_id} from SQLite: {t2 - t1:.2f} s"
+    )
+
+    return spt_soil_types_df
 
 
 def cpt_vs30s_for_one_nzgd_id(
@@ -347,22 +455,31 @@ def cpt_vs30s_for_one_nzgd_id(
     WHERE cptvs30estimates.nzgd_id = {selected_nzgd_id};"""
 
     t1 = time.time()
-    vs30_df = pd.read_sql_query(query, conn)
+    cpt_vs30_df = pd.read_sql_query(query, conn)
 
     # Add columns needed for the web app
-    vs30_df["record_name"] = (
-        vs30_df["type_prefix"].astype(str) + "_" + vs30_df["nzgd_id"].astype(str)
+    cpt_vs30_df["record_name"] = (
+        cpt_vs30_df["type_prefix"].astype(str)
+        + "_"
+        + cpt_vs30_df["nzgd_id"].astype(str)
     )
-    vs30_df["vs30_residual"] = np.log(vs30_df["vs30"]) - np.log(
-        vs30_df["model_vs30_foster_2019"]
-    )
-    vs30_df["gwl_residual"] = (
-        vs30_df["measured_gwl"] - vs30_df["model_gwl_westerhoff_2019"]
+
+    # Missing values (nan or None) will raise a TypeError when trying to calculate the residuals
+    # so in those cases, set the residuals to nan
+    try:
+        cpt_vs30_df["vs30_log_residual"] = np.log(cpt_vs30_df["vs30"]) - np.log(
+            cpt_vs30_df["model_vs30_foster_2019"]
+        )
+    except TypeError:
+        cpt_vs30_df["vs30_log_residual"] = np.nan
+
+    cpt_vs30_df["gwl_residual"] = (
+        cpt_vs30_df["measured_gwl"] - cpt_vs30_df["model_gwl_westerhoff_2019"]
     )
 
     # rename the columns to match the web app and add prefixes of cpt spt to columns that only
     # apply to one of the two types of data
-    vs30_df.rename(
+    cpt_vs30_df.rename(
         columns={
             "tip_net_area_ratio": "cpt_tip_net_area_ratio",
             "efficiency": "spt_efficiency",
@@ -377,4 +494,194 @@ def cpt_vs30s_for_one_nzgd_id(
         f"Time to extract Vs30s for nzgd_id={selected_nzgd_id} from SQLite: {t2 - t1:.2f} s"
     )
 
-    return vs30_df
+    return cpt_vs30_df
+
+
+def spt_vs30s_for_one_nzgd_id(
+    selected_nzgd_id: int, conn: sqlite3.Connection
+) -> pd.DataFrame:
+    """
+    Extracts Vs30 values for a given SPT ID from the SQLite database.
+
+    Parameters
+    ----------
+    selected_nzgd_id : int
+        The selected NZGD ID.
+    conn : sqlite3.Connection
+        The SQLite database connection.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the Vs30 values and related metadata.
+    """
+    query = f"""SELECT
+    sptvs30estimates.spt_id,
+    sptvs30estimates.borehole_diameter AS spt_borehole_diameter_for_vs30_calculation,
+    sptvs30estimates.vs30,    
+    sptvs30estimates.vs30_stddev,
+    sptvs30estimates.vs30_used_efficiency AS spt_vs30_calculation_used_efficiency,
+    sptvs30estimates.vs30_used_soil_info AS spt_vs30_calculation_used_soil_info,
+    sptreport.borehole_file,
+    sptreport.efficiency as spt_efficiency,
+    sptreport.borehole_diameter as spt_borehole_diameter,
+    sptreport.measured_gwl,
+    spttovscorrelation.name AS spt_to_vs_correlation,
+    vstovs30correlation.name AS vs_to_vs30_correlation,
+    nzgdrecord.type_prefix,
+    nzgdrecord.original_reference,
+    nzgdrecord.investigation_date,
+    nzgdrecord.published_date,
+    nzgdrecord.latitude,
+    nzgdrecord.longitude,
+    nzgdrecord.model_vs30_foster_2019,
+    nzgdrecord.model_vs30_stddev_foster_2019,
+    nzgdrecord.model_gwl_westerhoff_2019,
+    spttovs30hammertype.name AS hammer_type,
+    region.name AS region,
+    district.name AS district,
+    city.name AS city,
+    suburb.name AS suburb
+    FROM sptvs30estimates
+    JOIN spttovscorrelation
+      ON sptvs30estimates.spt_to_vs_correlation_id = spttovscorrelation.correlation_id
+    JOIN vstovs30correlation
+      ON sptvs30estimates.vs_to_vs30_correlation_id = vstovs30correlation.vs_to_vs30_correlation_id
+    JOIN sptreport
+      ON sptvs30estimates.spt_id = sptreport.borehole_id
+    JOIN spttovs30hammertype
+      ON sptvs30estimates.hammer_type_id = spttovs30hammertype.hammer_id
+    JOIN nzgdrecord
+      ON sptvs30estimates.spt_id = nzgdrecord.nzgd_id
+    JOIN region
+        ON nzgdrecord.region_id = region.region_id
+    JOIN district
+        ON nzgdrecord.district_id = district.district_id
+    JOIN suburb
+        ON nzgdrecord.suburb_id = suburb.suburb_id
+    JOIN city
+        ON nzgdrecord.city_id = city.city_id
+    WHERE sptvs30estimates.spt_id = {selected_nzgd_id};"""
+
+    t1 = time.time()
+    spt_vs30_df = pd.read_sql_query(query, conn)
+    spt_vs30_df.rename(columns={"spt_id": "nzgd_id"}, inplace=True)
+
+    spt_measurements_df = spt_measurements_for_one_nzgd(selected_nzgd_id, conn)
+
+    spt_vs30_df["deepest_depth"] = spt_measurements_df["depth"].max()
+    spt_vs30_df["shallowest_depth"] = spt_measurements_df["depth"].min()
+
+    # Add columns needed for the web app
+    spt_vs30_df["record_name"] = (
+        spt_vs30_df["type_prefix"].astype(str)
+        + "_"
+        + spt_vs30_df["nzgd_id"].astype(str)
+    )
+    spt_vs30_df["vs30_log_residual"] = np.log(spt_vs30_df["vs30"]) - np.log(
+        spt_vs30_df["model_vs30_foster_2019"]
+    )
+    spt_vs30_df["gwl_residual"] = (
+        spt_vs30_df["measured_gwl"] - spt_vs30_df["model_gwl_westerhoff_2019"]
+    )
+
+    t2 = time.time()
+
+    print(
+        f"Time to extract Vs30s for nzgd_id={selected_nzgd_id} from SQLite: {t2 - t1:.2f} s"
+    )
+
+    return spt_vs30_df
+
+
+if __name__ == "__main__":
+
+    instance_path = Path("/home/arr65/src/nzgd_map_from_webplate/instance")
+
+    vs30_correlation = "boore_2004"
+    cpt_vs_correlation = "andrus_2007_pleistocene"
+    spt_vs_correlation = "kwak_2015"
+
+    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+        vs_to_vs30_correlation_df = pd.read_sql_query(
+            "SELECT * FROM vstovs30correlation", conn
+        )
+        cpt_to_vs_correlation_df = pd.read_sql_query(
+            "SELECT * FROM cpttovscorrelation", conn
+        )
+        spt_to_vs_correlation_df = pd.read_sql_query(
+            "SELECT * FROM spttovscorrelation", conn
+        )
+
+        database_df = all_vs30s_given_correlations(
+            selected_vs30_correlation=vs30_correlation,
+            selected_cpt_to_vs_correlation=cpt_vs_correlation,
+            selected_spt_to_vs_correlation=spt_vs_correlation,
+            selected_hammer_type="Auto",
+            conn=conn,
+        )
+
+    database_df.loc[:, "vs30"] = clip_highest_and_lowest_percent(
+        database_df["vs30"], 0.1, 99.9
+    )
+
+    test_selected_vs30_correlation = "boore_2004"
+    test_selected_cpt_to_vs_correlation = "andrus_2007_pleistocene"
+    test_selected_spt_to_vs_correlation = "kwak_2015"
+    test_selected_hammer_type = "Auto"
+
+    db_conn = sqlite3.connect(
+        "/home/arr65/src/nzgd_data_extraction/nzgd_data_extraction/test_andrew_spt_nzgd.db"
+    )
+    database_df = all_vs30s_given_correlations(
+        test_selected_vs30_correlation,
+        test_selected_cpt_to_vs_correlation,
+        test_selected_spt_to_vs_correlation,
+        test_selected_hammer_type,
+        db_conn,
+    )
+
+    print()
+
+    # #record_name = "CPT_1"
+    # # cpt_sqlite_query = f"SELECT depth, qc, fs, u2 FROM cptmeasurements WHERE cpt_id = {record_name.split('_')[1]}"
+    # # cpt_measurements_df = pd.read_sql_query(cpt_sqlite_query, db_conn)
+    #
+    # #     query = """SELECT *
+    # # FROM cptmeasurements
+    # # JOIN cptreport ON cptmeasurements.cpt_id = cptreport.cpt_id
+    # # WHERE cptreport.nzgd_id = 1;"""
+    # #
+    # #     cpt_measurements_df = pd.read_sql_query(query, db_conn)
+    #
+    # cpt_measurements_df = cpt_measurements_for_one_nzgd(199657, db_conn)
+    #
+    # cpt_vs30_df = cpt_vs30s_for_one_nzgd_id(199657, db_conn)
+    #
+    # spt_measurements_df = spt_measurements_for_one_nzgd(128969, db_conn)
+    # spt_vs30_df = spt_vs30s_for_one_nzgd_id(128969, db_conn)
+    #
+    # spt_soil_df = spt_soil_types_for_one_nzgd(128969, db_conn)
+    #
+    # type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
+    # url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
+    # path_to_files = (
+    #     Path(type_prefix_to_folder[cpt_vs30_df["type_prefix"][0]])
+    #     / cpt_vs30_df["region"][0]
+    #     / cpt_vs30_df["district"][0]
+    #     / cpt_vs30_df["city"][0]
+    #     / cpt_vs30_df["suburb"][0]
+    #     / cpt_vs30_df["record_name"][0]
+    # )
+    # url_str = url_str_start + str(path_to_files)
+    #
+    # tip_net_area_ratio = cpt_vs30_df["cpt_tip_net_area_ratio"][0]
+    # if tip_net_area_ratio is None:
+    #     tip_net_area_ratio = "Not available"
+    #
+    # measured_gwl = cpt_vs30_df["measured_gwl"][0]
+    # if measured_gwl is None:
+    #     measured_gwl = "Not available"
+    #
+
+    print()
