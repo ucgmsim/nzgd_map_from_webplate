@@ -3,9 +3,9 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "webplate"
+name = "nzgd_map"
 authors = [{ name = "QuakeCoRE" }]
-description = "An interactive website template repo"
+description = "An interactive website for exploring the extracted extracted NZGD data"
 readme = "README.md"
 requires-python = ">=3.12"
 dynamic = ["version"]
@@ -13,7 +13,6 @@ dependencies = [
     'flask',
     'pandas',
     'plotly',
-    'geopandas',
 ]
 
 [tool.setuptools.packages]
