@@ -5,13 +5,18 @@ Each view is a function that returns an HTML template to render in the browser.
 
 from collections import OrderedDict
 from pathlib import Path
+import os
 
 import flask
+from flask import after_this_request
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import sqlite3
+from . import query_sqlite_db
+
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -26,25 +31,8 @@ def index():
     with open(instance_path / "date_of_last_nzgd_retrieval.txt", "r") as file:
         date_of_last_nzgd_retrieval = file.readline()
 
-    # Load the Vs30 values from a Parquet file
-    database_df = pd.read_parquet(
-        instance_path / "website_database.parquet"
-    ).reset_index()
-
-    # Retrieve the available correlation options from the database dataframe to
-    # populate the dropdowns in the user interface. Ignore None values.
-    vs30_correlations = [
-        x for x in database_df["vs30_correlation"].unique() if x is not None
-    ]
-    spt_vs_correlations = [
-        x for x in database_df["spt_vs_correlation"].unique() if x is not None
-    ]
-    cpt_vs_correlations = [
-        x for x in database_df["cpt_vs_correlation"].unique() if x is not None
-    ]
-
-    # Retrieve selected vs30 correlation. If no selection, default to "boore_2011"
-    vs30_correlation = flask.request.args.get("vs30_correlation", default="boore_2011")
+    # Retrieve selected vs30 correlation. If no selection, default to "boore_2004"
+    vs30_correlation = flask.request.args.get("vs30_correlation", default="boore_2004")
 
     # Retrieve selected spt_vs_correlation. If no selection, default to "brandenberg_2010"
     spt_vs_correlation = flask.request.args.get(
@@ -68,30 +56,52 @@ def index():
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
-    # Filter the dataframe for the selected vs30_correlation (applies to both CPT and SPT records)
-    database_df = database_df[database_df["vs30_correlation"] == vs30_correlation]
+    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+        vs_to_vs30_correlation_df = pd.read_sql_query(
+            "SELECT * FROM vstovs30correlation", conn
+        )
+        cpt_to_vs_correlation_df = pd.read_sql_query(
+            "SELECT * FROM cpttovscorrelation", conn
+        )
+        spt_to_vs_correlation_df = pd.read_sql_query(
+            "SELECT * FROM spttovscorrelation", conn
+        )
 
-    # Boolean masks for filtering the dataframe to only show the selected records on the map and histogram.
-    # Assume spt_hammer_type is "Auto" for SPT records.
-    spt_bool = (database_df["spt_vs_correlation"] == spt_vs_correlation) & (
-        database_df["spt_hammer_type"] == "Auto"
+        database_df = query_sqlite_db.all_vs30s_given_correlations(
+            selected_vs30_correlation=vs30_correlation,
+            selected_cpt_to_vs_correlation=cpt_vs_correlation,
+            selected_spt_to_vs_correlation=spt_vs_correlation,
+            selected_hammer_type="Auto",
+            conn=conn,
+        )
+
+    database_df["vs30"] = query_sqlite_db.clip_highest_and_lowest_percent(
+        database_df["vs30"], 0.1, 99.9
     )
-    cpt_bool = database_df["cpt_vs_correlation"] == cpt_vs_correlation
 
-    # Filter the dataframe to only show the selected records on the map and histogram
-    database_df = database_df[spt_bool | cpt_bool]
+    # Retrieve the available correlation options from the database dataframe to
+    # populate the dropdowns in the user interface. Ignore None values.
+    vs30_correlations = vs_to_vs30_correlation_df["name"].unique()
+    cpt_vs_correlations = cpt_to_vs_correlation_df["name"].unique()
+    spt_vs_correlations = spt_to_vs_correlation_df["name"].unique()
 
     # Apply custom query filtering if provided
     if query:
         database_df = database_df.query(query)
+
+    #########################################################################################
 
     # Calculate the center of the map for visualization
     centre_lat = database_df["latitude"].mean()
     centre_lon = database_df["longitude"].mean()
 
     ## Make map marker sizes proportional to the absolute value of the Vs30 log residual.
-    ## Map marker size values cannot include nans, so replace nans with 0.0
-    database_df["size"] = database_df["vs30_log_residual"].abs().fillna(0.0)
+    ## For records where the Vs30 log residual is unavailable, use the median of absolute value of the Vs30 log residuals.
+    database_df["size"] = (
+        database_df["vs30_log_residual"]
+        .abs()
+        .fillna(database_df["vs30_log_residual"].abs().median().round(1))
+    )
     marker_size_description_text = r"Marker size indicates the magnitude of the Vs30 log residual, given by \(\mathrm{|(\log(SPT_{Vs30}) - \log(Foster2019_{Vs30})|}\)"
 
     ## Make new columns of string values to display instead of the float values for Vs30 and log residual
@@ -104,16 +114,16 @@ def index():
     else:
         reason_text = "Unable to estimate as Boore et al. (2004) Vs to Vs30 correlation requires a depth of at least 10 m"
         min_required_depth = 10
-    database_df.loc[database_df["max_depth"] < min_required_depth, "Vs30 (m/s)"] = (
+    database_df.loc[database_df["deepest_depth"] < min_required_depth, "Vs30 (m/s)"] = (
         reason_text
     )
     database_df.loc[
-        (database_df["max_depth"] >= min_required_depth)
+        (database_df["deepest_depth"] >= min_required_depth)
         & (np.isnan(database_df["vs30"]) | (database_df["vs30"] == 0)),
         "Vs30 (m/s)",
     ] = "Vs30 calculation failed even though CPT depth is sufficient"
     database_df.loc[
-        (database_df["max_depth"] >= min_required_depth)
+        (database_df["deepest_depth"] >= min_required_depth)
         & ~(np.isnan(database_df["vs30"]) | (database_df["vs30"] == 0)),
         "Vs30 (m/s)",
     ] = database_df["vs30"].apply(lambda x: f"{x:.2f}")
@@ -123,7 +133,7 @@ def index():
     database_df.loc[~(np.isnan(database_df["vs30_log_residual"])), "Vs30_log_resid"] = (
         database_df["vs30_log_residual"].apply(lambda x: f"{x:.2f}")
     )
-    database_df["max_depth (m)"] = database_df["max_depth"]
+    database_df["deepest_depth (m)"] = database_df["deepest_depth"]
 
     # Create an interactive scatter map using Plotly
     map = px.scatter_map(
@@ -137,7 +147,7 @@ def index():
         center={"lat": centre_lat, "lon": centre_lon},  # Map center
         hover_data=OrderedDict(
             [  # Used to order the items in hover data (but lat and long are always first)
-                ("max_depth (m)", ":.2f"),
+                ("deepest_depth (m)", ":.2f"),
                 ("Vs30 (m/s)", True),
                 ("Vs30_log_resid", True),
                 ("size", False),
@@ -200,16 +210,19 @@ def index():
             ("vs30", "Inferred Vs30 from data"),
             ("type_number_code", "Type of record"),
             ("vs30_log_residual", "log residual with Foster et al. (2019)"),
-            ("max_depth", "Maximum Depth"),
-            ("vs30_std", "Vs30 standard deviation inferred from data"),
-            ("foster_2019_vs30", "Vs30 from Foster et al. (2019)"),
+            ("deepest_depth", "Record's deepest depth"),
+            ("vs30_stddev", "Vs30 standard deviation inferred from data"),
+            ("model_vs30_foster_2019", "Vs30 from Foster et al. (2019)"),
             (
-                "foster_2019_vs30_std",
+                "model_vs30_stddev_foster_2019",
                 "Vs30 standard deviation from Foster et al. (2019)",
             ),
-            ("min_depth", "Minimum Depth"),
-            ("num_depth_levels", "Number of Depth Levels"),
-            ("depth_span", "Depth Span"),
+            ("shallowest_depth", "Record's shallowest depth"),
+            ("measured_gwl", "Measured groundwater level"),
+            (
+                "model_gwl_westerhoff_2019",
+                "Groundwater level from Westerhoff et al. (2019)",
+            ),
         ],
         hist_plot=hist_plot.to_html(
             full_html=False,  # Embed only the necessary map HTML
@@ -241,47 +254,111 @@ def spt_record(record_name: str):
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
 
-    vs30_df_all_records = pd.read_parquet(
-        instance_path / "website_database.parquet"
-    ).reset_index()
-    record_details_df = vs30_df_all_records[
-        vs30_df_all_records["record_name"] == record_name
-    ]
+    nzgd_id = int(record_name.split("_")[1])
 
-    record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
+    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+        spt_measurements_df = query_sqlite_db.spt_measurements_for_one_nzgd(
+            nzgd_id, conn
+        )
+        spt_soil_df = query_sqlite_db.spt_soil_types_for_one_nzgd(nzgd_id, conn)
+        vs30s_df = query_sqlite_db.spt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
-    all_spt_df = pd.read_parquet(
-        instance_path / "extracted_spt_data.parquet"
-    ).reset_index()
+    type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
+    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
 
-    all_spt_df["record_name"] = "BH_" + all_spt_df["NZGD_ID"].astype(str)
+    path_to_files = (
+        Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
+        / vs30s_df["region"][0]
+        / vs30s_df["district"][0]
+        / vs30s_df["city"][0]
+        / vs30s_df["suburb"][0]
+        / vs30s_df["record_name"][0]
+    )
+    url_str = url_str_start + str(path_to_files)
+    vs30s_df["estimate_number"] = np.arange(1, len(vs30s_df) + 1)
 
-    spt_df = all_spt_df[all_spt_df["record_name"] == record_name]
-    spt_df = spt_df.rename(columns={"N": "Number of blows", "Depth": "Depth (m)"})
-    soil_types_as_str = []
-    for soil_type in spt_df["Soil Type"]:
+    spt_efficiency = vs30s_df["spt_efficiency"][0]
+    if spt_efficiency is None:
+        spt_efficiency = "Not available"
+    elif isinstance(spt_efficiency, float):
+        spt_efficiency = f"{spt_efficiency:.0f}%"
 
-        if len(soil_type) > 0:
-            combined_soil_str = " + ".join(soil_type)
-            soil_types_as_str.append(combined_soil_str)
+    spt_borehole_diameter = vs30s_df["spt_borehole_diameter"][0]
+    if spt_borehole_diameter is None:
+        spt_borehole_diameter = "Not available"
+    elif isinstance(spt_borehole_diameter, float):
+        spt_borehole_diameter = f"{spt_borehole_diameter:.2f}"
 
-        else:
-            soil_types_as_str.append(None)
+    measured_gwl = vs30s_df["measured_gwl"][0]
+    if measured_gwl is None:
+        measured_gwl = "Not available"
+    elif isinstance(measured_gwl, float):
+        measured_gwl = f"{measured_gwl:.2f}"
 
-    spt_df["soil_types_as_str"] = soil_types_as_str
+    model_gwl_westerhoff_2019 = vs30s_df["model_gwl_westerhoff_2019"][0]
+    if model_gwl_westerhoff_2019 is None:
+        model_gwl_westerhoff_2019 = "Not available"
+    elif isinstance(model_gwl_westerhoff_2019, float):
+        model_gwl_westerhoff_2019 = f"{model_gwl_westerhoff_2019:.2f}"
+
+    model_vs30_foster_2019 = vs30s_df["model_vs30_foster_2019"][0]
+    if model_vs30_foster_2019 is None:
+        model_vs30_foster_2019 = "Not available"
+    elif isinstance(model_vs30_foster_2019, float):
+        model_vs30_foster_2019 = f"{model_vs30_foster_2019:.2f}"
+
+    model_vs30_stddev_foster_2019 = vs30s_df["model_vs30_stddev_foster_2019"][0]
+    if model_vs30_stddev_foster_2019 is None:
+        model_vs30_stddev_foster_2019 = "Not available"
+    elif isinstance(model_vs30_stddev_foster_2019, float):
+        model_vs30_stddev_foster_2019 = f"{model_vs30_stddev_foster_2019:.2f}"
+
+    spt_vs30_calculation_used_efficiency = vs30s_df[
+        "spt_vs30_calculation_used_soil_info"
+    ][0]
+    if spt_vs30_calculation_used_efficiency == 0:
+        spt_vs30_calculation_used_efficiency = "no"
+    elif spt_vs30_calculation_used_efficiency == 1:
+        spt_vs30_calculation_used_efficiency = "yes"
+
+    spt_vs30_calculation_used_soil_info = vs30s_df[
+        "spt_vs30_calculation_used_efficiency"
+    ][0]
+    if spt_vs30_calculation_used_soil_info == 0:
+        spt_vs30_calculation_used_soil_info = "no"
+    elif spt_vs30_calculation_used_soil_info == 1:
+        spt_vs30_calculation_used_soil_info = "yes"
+
+    spt_measurements_df.rename(
+        columns={"n": "Number of blows", "depth": "Depth (m)"}, inplace=True
+    )
 
     # Plot the SPT data. line_shape is set to "vhv" to create a step plot with the correct orientation for vertical depth.
-    spt_plot = px.line(spt_df, x="Number of blows", y="Depth (m)", line_shape="vhv")
+    spt_plot = px.line(
+        spt_measurements_df, x="Number of blows", y="Depth (m)", line_shape="vhv"
+    )
     # Invert the y-axis
     spt_plot.update_layout(yaxis=dict(autorange="reversed"))
 
     return flask.render_template(
         "views/spt_record.html",
-        record_details=record_details_df.to_dict(
+        record_details=vs30s_df.to_dict(
             orient="records"
         ),  # Pass DataFrame as list of dictionaries
-        spt_data=spt_df.to_dict(orient="records"),
+        spt_data=spt_measurements_df.to_dict(orient="records"),
+        soil_type=spt_soil_df.to_dict(orient="records"),
         spt_plot=spt_plot.to_html(),
+        url_str=url_str,
+        spt_efficiency=spt_efficiency,
+        spt_borehole_diameter=spt_borehole_diameter,
+        measured_gwl=measured_gwl,
+        model_vs30_foster_2019=model_vs30_foster_2019,
+        model_vs30_stddev_foster_2019=model_vs30_stddev_foster_2019,
+        model_gwl_westerhoff_2019=model_gwl_westerhoff_2019,
+        max_depth=spt_measurements_df["Depth (m)"].max(),
+        min_depth=spt_measurements_df["Depth (m)"].min(),
+        spt_vs30_calculation_used_efficiency=spt_vs30_calculation_used_efficiency,
+        spt_vs30_calculation_used_soil_info=spt_vs30_calculation_used_soil_info,
     )
 
 
@@ -303,15 +380,65 @@ def cpt_record(record_name: str):
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
 
-    vs30_df_all_records = pd.read_parquet(
-        instance_path / "website_database.parquet"
-    ).reset_index()
-    record_details_df = vs30_df_all_records[
-        vs30_df_all_records["record_name"] == record_name
-    ]
+    nzgd_id = int(record_name.split("_")[1])
+
+    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+        cpt_measurements_df = query_sqlite_db.cpt_measurements_for_one_nzgd(
+            nzgd_id, conn
+        )
+        vs30s_df = query_sqlite_db.cpt_vs30s_for_one_nzgd_id(nzgd_id, conn)
+
+    type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
+    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
+    path_to_files = (
+        Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
+        / vs30s_df["region"][0]
+        / vs30s_df["district"][0]
+        / vs30s_df["city"][0]
+        / vs30s_df["suburb"][0]
+        / vs30s_df["record_name"][0]
+    )
+    url_str = url_str_start + str(path_to_files)
+    vs30s_df["estimate_number"] = np.arange(1, len(vs30s_df) + 1)
+
+    tip_net_area_ratio = vs30s_df["cpt_tip_net_area_ratio"][0]
+    if tip_net_area_ratio is None:
+        tip_net_area_ratio = "Not available"
+    elif isinstance(tip_net_area_ratio, float):
+        tip_net_area_ratio = f"{tip_net_area_ratio:.2f}"
+
+    measured_gwl = vs30s_df["measured_gwl"][0]
+    if measured_gwl is None:
+        measured_gwl = "Not available"
+    elif isinstance(measured_gwl, float):
+        measured_gwl = f"{measured_gwl:.2f}"
+
+    model_gwl_westerhoff_2019 = vs30s_df["model_gwl_westerhoff_2019"][0]
+    if model_gwl_westerhoff_2019 is None:
+        model_gwl_westerhoff_2019 = "Not available"
+    elif isinstance(model_gwl_westerhoff_2019, float):
+        model_gwl_westerhoff_2019 = f"{model_gwl_westerhoff_2019:.2f}"
+
+    model_vs30_foster_2019 = vs30s_df["model_vs30_foster_2019"][0]
+    if model_vs30_foster_2019 is None:
+        model_vs30_foster_2019 = "Not available"
+    elif isinstance(model_vs30_foster_2019, float):
+        model_vs30_foster_2019 = f"{model_vs30_foster_2019:.2f}"
+
+    model_vs30_stddev_foster_2019 = vs30s_df["model_vs30_stddev_foster_2019"][0]
+    if model_vs30_stddev_foster_2019 is None:
+        model_vs30_stddev_foster_2019 = "Not available"
+    elif isinstance(model_vs30_stddev_foster_2019, float):
+        model_vs30_stddev_foster_2019 = f"{model_vs30_stddev_foster_2019:.2f}"
+
+    type_prefix = vs30s_df["type_prefix"][0]
+    if type_prefix is None:
+        type_prefix = "Not available"
+    elif isinstance(type_prefix, str):
+        type_prefix = f"{type_prefix}"
 
     ## Only show Vs30 values for correlations that could be used given the depth of the record
-    max_depth_for_record = record_details_df["max_depth"].unique()[0]
+    max_depth_for_record = vs30s_df["deepest_depth"].unique()[0]
 
     if max_depth_for_record < 5:
         vs30_correlation_explanation_text = (
@@ -323,38 +450,39 @@ def cpt_record(record_name: str):
 
     elif 5 <= max_depth_for_record < 10:
         vs30_correlation_explanation_text = (
-            f"{record_name} has a maximum depth of {max_depth_for_record} m so only the Boore et al. (2011) "
+            f"{record_name} has a maximum depth of {max_depth_for_record:.2f} m so only the Boore et al. (2011) "
             "Vs to Vs30 correlation can be used as it requires a depth of at least 5 m, while the "
             "Boore et al. (2004) correlation requires a depth of at least 10 m."
         )
         show_vs30_values = True
-        record_details_df = record_details_df[
-            record_details_df["vs30_correlation"] == "boore_2011"
-        ]
+        vs30s_df = vs30s_df[vs30s_df["vs_to_vs30_correlation"] == "boore_2011"]
 
     else:
         vs30_correlation_explanation_text = (
-            f"{record_name} has a maximum depth of {max_depth_for_record} m so both the Boore et al. (2004) "
+            f"{record_name} has a maximum depth of {max_depth_for_record:.2f} m so both the Boore et al. (2004) "
             "and Boore et al. (2011) Vs to Vs30 correlations can be used, as they require depths of at least "
             "10 m and 5 m, respectively."
         )
         show_vs30_values = True
 
-    record_details_df["estimate_number"] = np.arange(1, len(record_details_df) + 1)
-
-    # Only load the CPT data for the selected record
-    cpt_df = pd.read_parquet(
-        instance_path / "extracted_cpt_and_scpt_data.parquet",
-        filters=[("record_name", "==", record_name)],
-    ).reset_index()
-    cpt_df = cpt_df.sort_values(by="Depth")
-
     # Plot the CPT data as a subplot with 1 row and 3 columns
     fig = make_subplots(rows=1, cols=3)
 
-    fig.add_trace(go.Scatter(x=cpt_df["qc"], y=cpt_df["Depth"]), row=1, col=1)
-    fig.add_trace(go.Scatter(x=cpt_df["fs"], y=cpt_df["Depth"]), row=1, col=2)
-    fig.add_trace(go.Scatter(x=cpt_df["u"], y=cpt_df["Depth"]), row=1, col=3)
+    fig.add_trace(
+        go.Scatter(x=cpt_measurements_df["qc"], y=cpt_measurements_df["depth"]),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(x=cpt_measurements_df["fs"], y=cpt_measurements_df["depth"]),
+        row=1,
+        col=2,
+    )
+    fig.add_trace(
+        go.Scatter(x=cpt_measurements_df["u2"], y=cpt_measurements_df["depth"]),
+        row=1,
+        col=3,
+    )
 
     fig.update_yaxes(title_text="Depth (m)", autorange="reversed", row=1, col=1)
     fig.update_yaxes(title_text="Depth (m)", autorange="reversed", row=1, col=2)
@@ -368,13 +496,137 @@ def cpt_record(record_name: str):
 
     return flask.render_template(
         "views/cpt_record.html",
-        record_details=record_details_df.to_dict(
+        record_details=vs30s_df.to_dict(
             orient="records"
         ),  # Pass DataFrame as list of dictionaries
         cpt_plot=fig.to_html(),
         vs30_correlation_explanation_text=vs30_correlation_explanation_text,
         show_vs30_values=show_vs30_values,
+        url_str=url_str,
+        tip_net_area_ratio=tip_net_area_ratio,
+        measured_gwl=measured_gwl,
+        model_gwl_westerhoff_2019=model_gwl_westerhoff_2019,
+        record_name=record_name,
+        model_vs30_foster_2019=model_vs30_foster_2019,
+        model_vs30_stddev_foster_2019=model_vs30_stddev_foster_2019,
+        type_prefix=type_prefix,
     )
+
+
+def remove_file(file_path):
+    """Delete the specified file."""
+    try:
+        os.remove(file_path)
+        print(f"Deleting temporary file: {file_path}")
+    except OSError as e:
+        print(f"Error: {file_path} : {e.strerror}")
+
+
+@bp.route("/download_cpt_data/<filename>")
+def download_cpt_data(filename):
+    """Serve a file from the instance path for download and delete it afterwards."""
+    instance_path = Path(flask.current_app.instance_path)
+
+    nzgd_id = int(filename.split("_")[1])
+    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+        cpt_measurements_df = query_sqlite_db.cpt_measurements_for_one_nzgd(
+            nzgd_id, conn
+        )
+
+    cpt_measurements_df.rename(
+        columns={
+            "depth": "depth_(m)",
+            "qc": "cone_resistance_qc_(Mpa)",
+            "fs": "sleeve_friction_fs_(Mpa)",
+            "u2": "pore_pressure_u2_(Mpa)",
+        },
+        inplace=True,
+    )
+
+    # Create a temporary CSV file containing the CPT data
+    cpt_measurements_df[
+        [
+            "depth_(m)",
+            "cone_resistance_qc_(Mpa)",
+            "sleeve_friction_fs_(Mpa)",
+            "pore_pressure_u2_(Mpa)",
+        ]
+    ].to_csv(instance_path / filename, index=False)
+
+    # Download the temporary CSV file
+    file_path = instance_path / filename
+    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
+
+    # Delete the temporary file after it has been downloaded
+    @after_this_request
+    def remove_file_after_request(response):
+        remove_file(file_path)
+        return response
+
+    return response
+
+
+@bp.route("/download_spt_data/<filename>")
+def download_spt_data(filename):
+    """Serve a file from the instance path for download and delete it afterwards."""
+    instance_path = Path(flask.current_app.instance_path)
+
+    nzgd_id = int(filename.split("_")[1])
+    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+        spt_measurements_df = query_sqlite_db.spt_measurements_for_one_nzgd(
+            nzgd_id, conn
+        )
+
+    # Create a temporary CSV file containing the SPT data
+    spt_measurements_df.rename(
+        columns={"depth": "depth_m", "n": "number_of_blows"}, inplace=True
+    )
+    spt_measurements_df[["depth_m", "number_of_blows"]].to_csv(
+        instance_path / filename, index=False
+    )
+
+    # Download the temporary CSV file
+    file_path = instance_path / filename
+    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
+
+    # Delete the temporary file after it has been downloaded
+    @after_this_request
+    def remove_file_after_request(response):
+        remove_file(file_path)
+        return response
+
+    return response
+
+
+@bp.route("/download_spt_soil_types/<filename>")
+def download_spt_soil_types(filename):
+    """Serve a file from the instance path for download and delete it afterwards."""
+    instance_path = Path(flask.current_app.instance_path)
+
+    nzgd_id = int(filename.split("_")[1])
+    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+        spt_soil_types_df = query_sqlite_db.spt_soil_types_for_one_nzgd(nzgd_id, conn)
+
+    spt_soil_types_df.rename(
+        columns={"top_depth": "depth_at_layer_top_m"}, inplace=True
+    )
+
+    # Create a temporary CSV file containing the SPT data
+    spt_soil_types_df[["depth_at_layer_top_m", "soil_type"]].to_csv(
+        instance_path / filename, index=False
+    )
+
+    # Download the temporary CSV file
+    file_path = instance_path / filename
+    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
+
+    # Delete the temporary file after it has been downloaded
+    @after_this_request
+    def remove_file_after_request(response):
+        remove_file(file_path)
+        return response
+
+    return response
 
 
 @bp.route("/validate", methods=["GET"])
@@ -389,37 +641,32 @@ def validate():
     # Create a dummy dataframe to ensure the column names are present
     dummy_df = pd.DataFrame(
         columns=[
-            "record_name",
-            "type",
+            "cpt_id",
+            "nzgd_id",
+            "vs30",
+            "vs30_stddev",
+            "type_prefix",
             "original_reference",
             "investigation_date",
-            "total_depth",
             "published_date",
             "latitude",
             "longitude",
+            "model_vs30_foster_2019",
+            "model_vs30_stddev_foster_2019",
+            "model_gwl_westerhoff_2019",
+            "cpt_tip_net_area_ratio",
+            "measured_gwl",
+            "deepest_depth",
+            "shallowest_depth",
             "region",
             "district",
-            "city",
             "suburb",
-            "foster_2019_vs30",
-            "foster_2019_vs30_std",
-            "raw_file_links",
-            "processed_file_links",
-            "record_type",
-            "processing_error",
-            "max_depth",
-            "min_depth",
-            "depth_span",
-            "num_depth_levels",
-            "vs30",
-            "vs30_std",
-            "vs30_correlation",
-            "cpt_vs_correlation",
-            "spt_vs_correlation",
-            "spt_used_soil_info",
-            "spt_hammer_type",
-            "spt_borehole_diameter",
+            "city",
+            "record_name",
             "vs30_log_residual",
+            "gwl_residual",
+            "efficiency",
+            "borehole_diameter",
         ]
     )
     try:
