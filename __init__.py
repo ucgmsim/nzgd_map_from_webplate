@@ -1,5 +1,3 @@
-# nzgd_map/__init__.py
-from .app import create_app
+from nzgd_map.app import create_app
 
-# Create and expose the Flask application
 app = create_app()
