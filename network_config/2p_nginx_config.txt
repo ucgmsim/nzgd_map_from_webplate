@@ -1,0 +1,9 @@
+location /nzgd_source_files {
+        proxy_pass "http://hypocentre.canterbury.ac.nz:8000/nzgd_source_files/";
+        proxy_read_timeout 60;
+}
+
+location /nzgd {
+        proxy_pass "http://mantle.canterbury.ac.nz:7777/nzgd/";
+        proxy_read_timeout 60;
+}
