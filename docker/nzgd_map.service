@@ -1,0 +1,15 @@
+[Unit]
+Description=NZGD Map Service
+After=snap.docker.dockerd.service
+Requires=snap.docker.dockerd.service
+
+[Service]
+TimeoutStartSec=0
+Restart=always
+ExecStartPre=/snap/bin/docker pull earthquakesuc/nzgd_map
+ExecStart=/snap/bin/docker run --rm --name %n -p 7777:80 -v /mnt/mantle_data/nzgd_map:/usr/var/nzgd_map-instance earthquakesuc/nzgd_map
+ExecStop=/snap/bin/docker stop %n
+ExecStopPost=/snap/bin/docker rm %n
+
+[Install]
+WantedBy=default.target
