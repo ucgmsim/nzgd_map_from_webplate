@@ -265,7 +265,7 @@ def spt_record(record_name: str):
         vs30s_df = query_sqlite_db.spt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
+    url_str_start = "https://quakecoresoft.canterbury.ac.nz/nzgd_source_files/"
 
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
@@ -390,7 +390,7 @@ def cpt_record(record_name: str):
         vs30s_df = query_sqlite_db.cpt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
+    url_str_start = "https://quakecoresoft.canterbury.ac.nz/nzgd_source_files/"
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
         / vs30s_df["region"][0]
