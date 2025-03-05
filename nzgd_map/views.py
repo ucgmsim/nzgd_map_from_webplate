@@ -6,6 +6,7 @@ Each view is a function that returns an HTML template to render in the browser.
 from collections import OrderedDict
 from pathlib import Path
 import os
+from io import StringIO
 
 import flask
 from flask import after_this_request
@@ -544,6 +545,8 @@ def download_cpt_data(filename):
     )
 
     # Create a temporary CSV file containing the CPT data
+    download_buffer = StringIO()
+
     cpt_measurements_df[
         [
             "depth_(m)",
@@ -551,17 +554,9 @@ def download_cpt_data(filename):
             "sleeve_friction_fs_(Mpa)",
             "pore_pressure_u2_(Mpa)",
         ]
-    ].to_csv(instance_path / filename, index=False)
-
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    ].to_csv(download_buffer, index=False)
+    response = flask.make_response(download_buffer.getvalue(), mimetype="text/csv")
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
 
     return response
 
