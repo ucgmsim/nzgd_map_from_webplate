@@ -564,7 +564,7 @@ def download_cpt_data(filename):
 
 @bp.route("/download_spt_data/<filename>")
 def download_spt_data(filename):
-    """Serve a file from the instance path for download and delete it afterwards."""
+    """Serve SPT data as a downloadable CSV file using an in-memory buffer."""
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
@@ -573,30 +573,28 @@ def download_spt_data(filename):
             nzgd_id, conn
         )
 
-    # Create a temporary CSV file containing the SPT data
+    # Create a buffer for the CSV data
+    download_buffer = StringIO()
+
+    # Rename columns and write to buffer
     spt_measurements_df.rename(
         columns={"depth": "depth_m", "n": "number_of_blows"}, inplace=True
     )
     spt_measurements_df[["depth_m", "number_of_blows"]].to_csv(
-        instance_path / filename, index=False
+        download_buffer, index=False
     )
 
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    # Create response directly from the buffer
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
 
     return response
 
 
 @bp.route("/download_spt_soil_types/<filename>")
 def download_spt_soil_types(filename):
-    """Serve a file from the instance path for download and delete it afterwards."""
+    """Serve SPT soil types as a downloadable CSV file using an in-memory buffer."""
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
@@ -607,20 +605,18 @@ def download_spt_soil_types(filename):
         columns={"top_depth": "depth_at_layer_top_m"}, inplace=True
     )
 
-    # Create a temporary CSV file containing the SPT data
+    # Create a buffer for the CSV data
+    download_buffer = StringIO()
+
+    # Write the data to the buffer
     spt_soil_types_df[["depth_at_layer_top_m", "soil_type"]].to_csv(
-        instance_path / filename, index=False
+        download_buffer, index=False
     )
 
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    # Create response directly from the buffer
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
 
     return response
 
