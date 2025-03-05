@@ -555,7 +555,8 @@ def download_cpt_data(filename):
             "pore_pressure_u2_(Mpa)",
         ]
     ].to_csv(download_buffer, index=False)
-    response = flask.make_response(download_buffer.getvalue(), mimetype="text/csv")
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
     response.headers['Content-Disposition'] = f'attachment; filename={filename}'
 
     return response
