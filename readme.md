@@ -32,14 +32,17 @@ To install an editable version of `nzgd_map` outside a Docker container, enter t
 ### Installing inside a Docker container
 
 To install the `nzgd_map` package inside a Docker container, use the files in the `docker` folder 
-and enter the following commands in a terminal. More information about the files in the `docker` folder can be found below.
+and enter the following commands in a terminal. More information about the files in the `docker` folder 
+can be found below.
 
 * Open a terminal and change to the `docker` folder in the repository
     * e.g., `cd /home/username/src/nzgd_map/docker`
-* Build the Docker image (which includes the `nzgd_map` package due to a pip install instruction in `Dockerfile`). Also note that `earthquakesuc` is our Docker Hub username.
+* Build the Docker image (which includes the `nzgd_map` package due to a pip install instruction in `Dockerfile`). 
+Also note that `earthquakesuc` is our Docker Hub username.
     * If this is the first time building the image, or the `nzgd_map` package has not changed, run the following command:
         * `sudo docker build -t earthquakesuc/base .` 
-    * If this is not the first time building the image, and the `nzgd_map` package has changed, run with `--no-cache` so the image will be built with the latest version of the `nzgd_map` package:
+    * If this is not the first time building the image, and the `nzgd_map` package has changed, run with `--no-cache` 
+  so the image will be built with the latest version of the `nzgd_map` package:
     * `sudo docker build -t --no-cache earthquakesuc/nzgd_map .` 
 
 * Push the image to Docker Hub (see the section below on logging in to Docker Hub)
@@ -176,14 +179,16 @@ Specifies that the service should be started when the default system target (usu
 `FROM python:3.12-alpine`  
 
 **Explanation:**  
-Specifies the base image for the Docker container using the official Python 3.12 image based on Alpine Linux, which is a lightweight distribution suitable for production environments.
-
+Specifies that Alpine Linux be used as the base image for the Docker container.
+Ubuntu Linux can also be used, but the resulting images are approximately 
+10 times larger
 
 **File line:**  
 `RUN apk add --no-cache git nginx sqlite-libs uwsgi-python3`  
 
 **Explanation:**  
-Uses Alpine’s package manager (`apk`) to install the necessary packages (git, nginx, sqlite libraries, and uwsgi for Python3) without caching, which helps keep the image size small.
+Uses Alpine’s package manager (`apk`) to install the necessary packages 
+(git, nginx, sqlite libraries, and uwsgi for Python3) without caching, which helps keep the image size small.
 
 **File line:**  
 `RUN mkdir -p /data`  
@@ -195,13 +200,15 @@ Creates the `/data` directory if it does not already exist.
 `RUN mkdir -p /usr/var/nzgd_map-instance`  
 
 **Explanation:**  
-Creates the `/usr/var/nzgd_map-instance` directory, which is used for storing instance-specific data for the NZGD map service.
+Creates the `/usr/var/nzgd_map-instance` directory, which is used for storing instance-specific data for the NZGD map 
+service.
 
 **File line:**  
 `RUN chown -R nobody:nobody /usr/var/nzgd_map-instance`  
 
 **Explanation:**  
-Changes the ownership of the `/usr/var/nzgd_map-instance` directory (and its contents) recursively to the user and group “nobody” for improved security.
+Changes the ownership of the `/usr/var/nzgd_map-instance` directory (and its contents) recursively to the user and 
+group “nobody” for improved security.
 
 **File line:**  
 RUN pip install --no-cache-dir "git+https://github.com/ucgmsim/nzgd_map#egg=nzgd_map" uwsgi`  
@@ -233,13 +240,15 @@ Grants execute permission to the `start.sh` script so that it can be run as a co
 `COPY nginx.conf /etc/nginx/nginx.conf`  
 
 **Explanation:**  
-Copies the `nginx.conf` file from the build context into the container’s `/etc/nginx/` directory, replacing the default nginx configuration.
+Copies the `nginx.conf` file from the build context into the container’s `/etc/nginx/` directory, replacing the default 
+nginx configuration.
 
 **File line:**  
 `CMD /start.sh`  
 
 **Explanation:**  
-Sets the default command to run when the container starts; it executes the `start.sh` script, which is likely responsible for starting nginx (and possibly other services) in the foreground.
+Sets the default command to run when the container starts; it executes the `start.sh` script, which is likely 
+responsible for starting nginx (and possibly other services) in the foreground.
 
 ---
 
@@ -323,14 +332,15 @@ Configures uWSGI to shut down gracefully when it receives a termination signal.
 `route-run = fixpathinfo:`  
 
 **Explanation:**  
-Sets a routing rule to fix the `PATH_INFO` in the request environment, which can help ensure the application receives the correct URL path.
+Sets a routing rule to fix the `PATH_INFO` in the request environment, which can help ensure the application receives 
+the correct URL path.
 
 **File line:**  
 `pythonpath = /usr/local/lib/python3.12/site-packages`  
 
 **Explanation:**  
-Adds the specified directory to the Python module search path, ensuring that Python packages located there can be found and imported.
-This is **important** as the `nzgd_map` package **cannot** be imported without this line.
+Adds the specified directory to the Python module search path, ensuring that Python packages located there can be found 
+and imported. This is **important** as the `nzgd_map` package **cannot** be imported without this line.
 ---
 
 ### nginx.conf
@@ -358,7 +368,8 @@ Starts the HTTP configuration block where settings for handling HTTP requests ar
 `    include /etc/nginx/mime.types;  # <- Ensures proper MIME types!`  
 
 **Explanation:**  
-Includes the MIME types configuration file that maps file extensions to MIME types. This ensures that files are served with the correct Content-Type header.
+Includes the MIME types configuration file that maps file extensions to MIME types. This ensures that files are served 
+with the correct Content-Type header.
 
 **File line:**  
 ``    server {``  
@@ -382,7 +393,8 @@ Sets the server name to "localhost". This server block will handle requests dire
 ``           location /nzgd {``  
 
 **Explanation:**  
-Begins a location block that matches requests starting with the URI `/nzgd`. This block defines how requests to that path should be handled.
+Begins a location block that matches requests starting with the URI `/nzgd`. This block defines how requests to that 
+path should be handled.
 
 **File line:**  
 ``                    include uwsgi_params;``  
@@ -428,22 +440,26 @@ Closes the HTTP configuration block.
 `#!/usr/bin/env sh`  
 
 **Explanation:**  
-Specifies the script interpreter by using the environment's `sh`. This is the shebang line that tells the system to execute the script with the shell interpreter.
+Specifies the script interpreter by using the environment's `sh`. This is the shebang line that tells the system to 
+execute the script with the shell interpreter.
 
 **File line:**  
 `echo "Starting nginx"`  
 
 **Explanation:**  
-Prints the message "Starting nginx" to the console, which serves as an informational log to indicate that the script is beginning the process of starting Nginx.
+Prints the message "Starting nginx" to the console, which serves as an informational log to indicate that the script is
+beginning the process of starting Nginx.
 
 **File line:**  
 `uwsgi --ini /nzgd.ini &`  
 
 **Explanation:**  
-Starts the uWSGI server using the configuration file `/nzgd.ini` and runs it in the background (due to the trailing `&`), allowing the script to continue executing subsequent commands.
+Starts the uWSGI server using the configuration file `/nzgd.ini` and runs it in the background 
+(due to the trailing `&`), allowing the script to continue executing subsequent commands.
 
 **File line:**  
 `nginx -g "daemon off;"`  
 
 **Explanation:**  
-Launches Nginx with the directive to run in the foreground (`daemon off;`). Running Nginx in the foreground is particularly useful in container environments to prevent the container from exiting.
+Launches Nginx with the directive to run in the foreground (`daemon off;`). 
+Running Nginx in the foreground is particularly useful in container environments to prevent the container from exiting.
