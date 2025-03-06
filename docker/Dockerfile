@@ -8,11 +8,8 @@ RUN mkdir -p /data
 RUN mkdir -p /usr/var/nzgd_map-instance
 RUN chown -R nobody:nobody /usr/var/nzgd_map-instance
 
-
 # Install pdoc for documentation generation
-#RUN pip install --no-cache-dir "git+https://github.com/ucgmsim/nzgd_map#egg=nzgd_map" uwsgi
-RUN pip install --no-cache-dir "git+https://github.com/ucgmsim/nzgd_map@for_container#egg=nzgd_map"
-
+RUN pip install --no-cache-dir "git+https://github.com/ucgmsim/nzgd_map#egg=nzgd_map" uwsgi
 
 COPY nzgd.ini /nzgd.ini
 COPY start.sh /start.sh

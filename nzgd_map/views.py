@@ -3,21 +3,21 @@ The views module defines the Flask views (web pages) for the application.
 Each view is a function that returns an HTML template to render in the browser.
 """
 
-from collections import OrderedDict
-from pathlib import Path
 import os
+import sqlite3
+from collections import OrderedDict
 from io import StringIO
+from pathlib import Path
 
 import flask
-from flask import after_this_request
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from flask import after_this_request
 from plotly.subplots import make_subplots
-import sqlite3
-from . import query_sqlite_db
 
+from . import query_sqlite_db
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -557,7 +557,7 @@ def download_cpt_data(filename):
     ].to_csv(download_buffer, index=False)
     response = flask.make_response(download_buffer.getvalue())
     response.mimetype = "text/csv"
-    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
@@ -587,7 +587,7 @@ def download_spt_data(filename):
     # Create response directly from the buffer
     response = flask.make_response(download_buffer.getvalue())
     response.mimetype = "text/csv"
-    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
@@ -616,7 +616,7 @@ def download_spt_soil_types(filename):
     # Create response directly from the buffer
     response = flask.make_response(download_buffer.getvalue())
     response.mimetype = "text/csv"
-    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
