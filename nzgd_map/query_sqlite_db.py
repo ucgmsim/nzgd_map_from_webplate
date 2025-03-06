@@ -3,11 +3,11 @@ This module provides a function to extract pre-computed Vs30 values for CPT and 
 a SQLite database based on the selected correlations and hammer type.
 """
 
-import pandas as pd
 import sqlite3
 import time
+
 import numpy as np
-from pathlib import Path
+import pandas as pd
 
 
 def clip_highest_and_lowest_percent(
@@ -367,21 +367,42 @@ def spt_measurements_for_one_nzgd(
 def spt_soil_types_for_one_nzgd(
     selected_nzgd_id: int, conn: sqlite3.Connection
 ) -> pd.DataFrame:
+    """
+    Extracts soil types for a given SPT ID from the SQLite database.
 
+    Parameters
+    ----------
+    selected_nzgd_id : int
+        The selected NZGD ID.
+    conn : sqlite3.Connection
+        The SQLite database connection.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the soil types and related metadata.
+    """
+
+    # SQL query to join multiple tables and extract soil types for the given SPT ID
     query = f"""SELECT *
-FROM sptreport
-JOIN soilmeasurements ON soilmeasurements.report_id = sptreport.borehole_id
-JOIN soilmeasurementsoiltype ON soilmeasurementsoiltype.soil_measurement_id = soilmeasurements.measurement_id
-JOIN soiltypes ON soilmeasurementsoiltype.soil_type_id = soiltypes.id
-WHERE sptreport.borehole_id = {selected_nzgd_id}
-ORDER BY soilmeasurements.top_depth ASC;"""
+    FROM sptreport
+    JOIN soilmeasurements ON soilmeasurements.report_id = sptreport.borehole_id
+    JOIN soilmeasurementsoiltype ON soilmeasurementsoiltype.soil_measurement_id = soilmeasurements.measurement_id
+    JOIN soiltypes ON soilmeasurementsoiltype.soil_type_id = soiltypes.id
+    WHERE sptreport.borehole_id = {selected_nzgd_id}
+    ORDER BY soilmeasurements.top_depth ASC;"""
 
+    # Record the start time for performance measurement
     t1 = time.time()
+    # Execute the SQL query and store the result in a DataFrame
     spt_soil_types_df = pd.read_sql_query(query, conn)
+    # Record the end time for performance measurement
     t2 = time.time()
 
+    # Rename the 'name' column to 'soil_type' for clarity
     spt_soil_types_df.rename(columns={"name": "soil_type"}, inplace=True)
 
+    # Print the time taken to execute the query
     print(
         f"Time to extract SPT soil types for borehole_id={selected_nzgd_id} from SQLite: {t2 - t1:.2f} s"
     )
@@ -592,96 +613,3 @@ def spt_vs30s_for_one_nzgd_id(
     )
 
     return spt_vs30_df
-
-
-if __name__ == "__main__":
-
-    instance_path = Path("/home/arr65/src/nzgd_map_from_webplate/instance")
-
-    vs30_correlation = "boore_2004"
-    cpt_vs_correlation = "andrus_2007_pleistocene"
-    spt_vs_correlation = "kwak_2015"
-
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
-        vs_to_vs30_correlation_df = pd.read_sql_query(
-            "SELECT * FROM vstovs30correlation", conn
-        )
-        cpt_to_vs_correlation_df = pd.read_sql_query(
-            "SELECT * FROM cpttovscorrelation", conn
-        )
-        spt_to_vs_correlation_df = pd.read_sql_query(
-            "SELECT * FROM spttovscorrelation", conn
-        )
-
-        database_df = all_vs30s_given_correlations(
-            selected_vs30_correlation=vs30_correlation,
-            selected_cpt_to_vs_correlation=cpt_vs_correlation,
-            selected_spt_to_vs_correlation=spt_vs_correlation,
-            selected_hammer_type="Auto",
-            conn=conn,
-        )
-
-    database_df.loc[:, "vs30"] = clip_highest_and_lowest_percent(
-        database_df["vs30"], 0.1, 99.9
-    )
-
-    test_selected_vs30_correlation = "boore_2004"
-    test_selected_cpt_to_vs_correlation = "andrus_2007_pleistocene"
-    test_selected_spt_to_vs_correlation = "kwak_2015"
-    test_selected_hammer_type = "Auto"
-
-    db_conn = sqlite3.connect(
-        "/home/arr65/src/nzgd_data_extraction/nzgd_data_extraction/test_andrew_spt_nzgd.db"
-    )
-    database_df = all_vs30s_given_correlations(
-        test_selected_vs30_correlation,
-        test_selected_cpt_to_vs_correlation,
-        test_selected_spt_to_vs_correlation,
-        test_selected_hammer_type,
-        db_conn,
-    )
-
-    print()
-
-    # #record_name = "CPT_1"
-    # # cpt_sqlite_query = f"SELECT depth, qc, fs, u2 FROM cptmeasurements WHERE cpt_id = {record_name.split('_')[1]}"
-    # # cpt_measurements_df = pd.read_sql_query(cpt_sqlite_query, db_conn)
-    #
-    # #     query = """SELECT *
-    # # FROM cptmeasurements
-    # # JOIN cptreport ON cptmeasurements.cpt_id = cptreport.cpt_id
-    # # WHERE cptreport.nzgd_id = 1;"""
-    # #
-    # #     cpt_measurements_df = pd.read_sql_query(query, db_conn)
-    #
-    # cpt_measurements_df = cpt_measurements_for_one_nzgd(199657, db_conn)
-    #
-    # cpt_vs30_df = cpt_vs30s_for_one_nzgd_id(199657, db_conn)
-    #
-    # spt_measurements_df = spt_measurements_for_one_nzgd(128969, db_conn)
-    # spt_vs30_df = spt_vs30s_for_one_nzgd_id(128969, db_conn)
-    #
-    # spt_soil_df = spt_soil_types_for_one_nzgd(128969, db_conn)
-    #
-    # type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    # url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
-    # path_to_files = (
-    #     Path(type_prefix_to_folder[cpt_vs30_df["type_prefix"][0]])
-    #     / cpt_vs30_df["region"][0]
-    #     / cpt_vs30_df["district"][0]
-    #     / cpt_vs30_df["city"][0]
-    #     / cpt_vs30_df["suburb"][0]
-    #     / cpt_vs30_df["record_name"][0]
-    # )
-    # url_str = url_str_start + str(path_to_files)
-    #
-    # tip_net_area_ratio = cpt_vs30_df["cpt_tip_net_area_ratio"][0]
-    # if tip_net_area_ratio is None:
-    #     tip_net_area_ratio = "Not available"
-    #
-    # measured_gwl = cpt_vs30_df["measured_gwl"][0]
-    # if measured_gwl is None:
-    #     measured_gwl = "Not available"
-    #
-
-    print()

@@ -170,21 +170,32 @@ def index():
     else:
         residual_description_text = ""
 
-    all_df_column_names = database_df.columns.tolist()
-    col_names_to_exclude = [
-        "index",
-        "type",
-        "link_to_pdf",
-        "nzgd_url",
-        "size",
-        "total_depth",
-        "original_reference",
-        "error_from_data",
-    ]
     col_names_to_display = [
-        col_name
-        for col_name in all_df_column_names
-        if col_name not in col_names_to_exclude
+        "record_name",
+        "nzgd_id",
+        "cpt_id",
+        "vs30",
+        "vs30_stddev",
+        "type_prefix",
+        "original_reference",
+        "investigation_date",
+        "published_date",
+        "latitude",
+        "longitude",
+        "model_vs30_foster_2019",
+        "model_vs30_stddev_foster_2019",
+        "model_gwl_westerhoff_2019",
+        "cpt_tip_net_area_ratio",
+        "measured_gwl",
+        "deepest_depth",
+        "shallowest_depth",
+        "region",
+        "district",
+        "suburb",
+        "city",
+        "vs30_log_residual",
+        "gwl_residual",
+        "spt_efficiency",
     ]
     col_names_to_display_str = ", ".join(col_names_to_display)
 
@@ -657,8 +668,8 @@ def validate():
             "record_name",
             "vs30_log_residual",
             "gwl_residual",
-            "efficiency",
-            "borehole_diameter",
+            "spt_efficiency",
+            "spt_borehole_diameter",
         ]
     )
     try:
