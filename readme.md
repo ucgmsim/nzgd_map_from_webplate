@@ -1,6 +1,6 @@
 ## Introduction
 
-This repository contains the source code for the `nzgd_map` package which is a web application
+This repository contains the source code for the `nzgd_map` package. This is a web application
 that enables access to analysis-ready data products derived from data hosted on the New Zealand Geotechnical 
 Database (NZGD). This repository also contains files for building a Docker image that can be used to run the
 `nzgd_map` package in a containerized environment.
@@ -32,15 +32,15 @@ To install an editable version of `nzgd_map` outside a Docker container, enter t
 ### Installing inside a Docker container
 
 To install the `nzgd_map` package inside a Docker container, use the files in the `docker` folder 
-and enter the following commands in a terminal. More information about the files in the `docker` folder 
-can be found below.
+and enter the following commands in a terminal. For more information about the files in the `docker` folder,
+refer to the relevant section below.
 
 * Open a terminal and change to the `docker` folder in the repository
     * e.g., `cd /home/username/src/nzgd_map/docker`
 * Build the Docker image (which includes the `nzgd_map` package due to a pip install instruction in `Dockerfile`). 
 Also note that `earthquakesuc` is our Docker Hub username.
     * If this is the first time building the image, or the `nzgd_map` package has not changed, run the following command:
-        * `sudo docker build -t earthquakesuc/base .` 
+        * `sudo docker build -t earthquakesuc/nzgd_map .` 
     * If this is not the first time building the image, and the `nzgd_map` package has changed, run with `--no-cache` 
   so the image will be built with the latest version of the `nzgd_map` package:
     * `sudo docker build -t --no-cache earthquakesuc/nzgd_map .` 
@@ -60,15 +60,15 @@ Also note that `earthquakesuc` is our Docker Hub username.
     * If the service is already running, restart it.
         * `sudo systemctl restart nzgd_map`
 
-* Check the status of the `nzgd_map` service to ensure it is running.
+* Check the status of the `nzgd_map` service to ensure it is running
     * `sudo systemctl status nzgd_map`
 
-* Check the status of the `nzgd_map` container to ensure it is running.
+* Check the status of the `nzgd_map` container to ensure it is running
     * `sudo docker ps`
 
 ### Logging in to Docker Hub
 Open a terminal and enter the following command:
-sudo docker login`
+`sudo docker login`
 
 The terminal will show a message like the following:
 
@@ -95,7 +95,7 @@ followed by an explanation of its purpose.
 `[Unit]`
 
 **Explanation:**
-Contains metadata and defines relationships with other services.
+Starts the `[UNIT]` section, which contains metadata and defines relationships with other services.
 
 **File line:**  
 `Description=NZGD Map Service`  
@@ -119,7 +119,7 @@ Declares a dependency on the Docker daemon service, ensuring it is running befor
 `[Service]`
 
 **Explanation:**
-Controls how the service process executes and behaves.
+Starts the `[Service]` section, which controls how the service process executes and behaves.
 
 **File line:**  
 `TimeoutStartSec=0`  
@@ -137,7 +137,7 @@ Configures systemd to always restart the service if it stops for any reason.
 `ExecStartPre=/snap/bin/docker pull earthquakesuc/nzgd_map`  
 
 **Explanation:**  
-Runs this command before starting the service; it pulls the latest Docker image "earthquakesuc/nzgd_map".
+Runs this command before starting the service, which pulls the latest Docker image "earthquakesuc/nzgd_map".
 
 **File line:**  
 `ExecStart=/snap/bin/docker run --rm --name %n -p 7777:80 -v /mnt/mantle_data/nzgd_map:/usr/var/nzgd_map-instance earthquakesuc/nzgd_map`  
@@ -161,7 +161,13 @@ Stops the Docker container gracefully when the service is stopped.
 **Explanation:**  
 Removes the container after stopping to clean up any remnants.
 
-**[Install]**
+**File line:**
+
+`[Install]`
+
+**Explanation:**
+
+Starts the `[Install]` section, which defines how the service integrates with the system boot process.
 
 **File line:**  
 `WantedBy=default.target`  
@@ -173,22 +179,20 @@ Specifies that the service should be started when the default system target (usu
 
 ### Dockerfile
 
-**FROM python:3.12-alpine**
-
 **File line:**  
 `FROM python:3.12-alpine`  
 
 **Explanation:**  
 Specifies that Alpine Linux be used as the base image for the Docker container.
 Ubuntu Linux can also be used, but the resulting images are approximately 
-10 times larger
+10 times larger.
 
 **File line:**  
 `RUN apk add --no-cache git nginx sqlite-libs uwsgi-python3`  
 
 **Explanation:**  
-Uses Alpine’s package manager (`apk`) to install the necessary packages 
-(git, nginx, sqlite libraries, and uwsgi for Python3) without caching, which helps keep the image size small.
+Uses Alpine’s package manager `apk` to install the necessary packages 
+(`git`, `nginx`, `sqlite` libraries, and `uwsgi` for `Python3`) without caching, which helps keep the image size small.
 
 **File line:**  
 `RUN mkdir -p /data`  
@@ -214,7 +218,7 @@ group “nobody” for improved security.
 RUN pip install --no-cache-dir "git+https://github.com/ucgmsim/nzgd_map#egg=nzgd_map" uwsgi`  
 
 **Explanation:**  
-Installs the nzgd_map package directly from a Git repository without using the pip cache, ensuring the latest version 
+Installs the `nzgd_map` package directly from a GitHub repository without using the pip cache, ensuring the latest version 
 for container deployment.
 
 **File line:**  
@@ -247,8 +251,8 @@ nginx configuration.
 `CMD /start.sh`  
 
 **Explanation:**  
-Sets the default command to run when the container starts; it executes the `start.sh` script, which is likely 
-responsible for starting nginx (and possibly other services) in the foreground.
+Sets the default command to run when the container starts; it executes the `start.sh` script, which starts
+nginx in the foreground.
 
 ---
 
