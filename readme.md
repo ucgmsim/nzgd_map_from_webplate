@@ -43,7 +43,7 @@ Also note that `earthquakesuc` is our Docker Hub username.
         * `sudo docker build -t earthquakesuc/nzgd_map .` 
     * If this is not the first time building the image, and the `nzgd_map` package has changed, run with `--no-cache` 
   so the image will be built with the latest version of the `nzgd_map` package:
-    * `sudo docker build -t --no-cache earthquakesuc/nzgd_map .` 
+    * `sudo docker build --no-cache -t earthquakesuc/nzgd_map .`
 
 * Push the image to Docker Hub (see the section below on logging in to Docker Hub)
     * `sudo docker push earthquakesuc/nzgd_map`
