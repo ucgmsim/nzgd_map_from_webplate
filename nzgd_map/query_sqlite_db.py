@@ -10,6 +10,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from nzgd_data_extraction.nzgd_sqlite import db
+
 
 def clip_highest_and_lowest_percent(
     data: pd.Series, lower_percent: float, upper_percent: float
@@ -368,36 +370,54 @@ def spt_measurements_for_one_nzgd(
 def spt_soil_types_for_one_nzgd(
     selected_nzgd_id: int, conn: sqlite3.Connection
 ) -> pd.DataFrame:
+    """
+    Extracts soil types for a given NZGD ID from the SQLite database.
 
+    Parameters
+    ----------
+    selected_nzgd_id : int
+        The selected NZGD ID.
+    conn : sqlite3.Connection
+        The SQLite database connection.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the soil types and related metadata.
+    """
+
+    # SQL query to join multiple tables and extract soil types for the given NZGD ID
     query = f"""SELECT *
-FROM sptreport
-JOIN soilmeasurements ON soilmeasurements.report_id = sptreport.borehole_id
-JOIN soilmeasurementsoiltype ON soilmeasurementsoiltype.soil_measurement_id = soilmeasurements.measurement_id
-JOIN soiltypes ON soilmeasurementsoiltype.soil_type_id = soiltypes.id
-WHERE sptreport.borehole_id = {selected_nzgd_id}
-ORDER BY soilmeasurements.top_depth ASC;"""
+    FROM sptreport
+    JOIN soilmeasurements ON soilmeasurements.report_id = sptreport.borehole_id
+    JOIN soilmeasurementsoiltype ON soilmeasurementsoiltype.soil_measurement_id = soilmeasurements.measurement_id
+    JOIN soiltypes ON soilmeasurementsoiltype.soil_type_id = soiltypes.id
+    WHERE sptreport.borehole_id = {selected_nzgd_id}
+    ORDER BY soilmeasurements.top_depth ASC;"""
 
-    t1 = time.time()
     spt_soil_types_df = pd.read_sql_query(query, conn)
-    t2 = time.time()
 
     spt_soil_types_df.rename(columns={"name": "soil_type"}, inplace=True)
 
-    # Calculate the differences between consecutive top_depth values
-    layer_thickness = np.diff(spt_soil_types_df["top_depth"])
-    # Append a NaN for the last row (or any other fill value if appropriate)
-    thickness_padded = np.append(layer_thickness, np.nan)
+    spt_soil_types_df = spt_soil_types_df[["nzgd_id", "top_depth", "soil_type"]]
 
-    spt_soil_types_df["layer_thickness"] = thickness_padded
-    # Convert the "layer_thickness" values to strings with two de
-    # cimal places.
-    # Replace the NaN (missing) value with the string "not available".
-    spt_soil_types_df["layer_thickness"] = spt_soil_types_df["layer_thickness"].apply(
-        lambda x: f"{x:.3f}" if pd.notna(x) else "not available"
+    # round top_depth to 3 decimals to avoid floating point precision issues
+    spt_soil_types_df["top_depth"] = spt_soil_types_df["top_depth"].round(4)
+
+    # If a single soil layer has multiple soil types, concatenate them into a single string
+    spt_soil_types_df = spt_soil_types_df.groupby(
+        "top_depth", sort=False, as_index=False
+    ).agg({"nzgd_id": "first", "soil_type": lambda x: " + ".join(x)})
+
+    # Shift the diffs back by one row so that the first row has the correct layer thickness
+    spt_soil_types_df["layer_thickness"] = (
+        spt_soil_types_df["top_depth"].diff().shift(-1)
     )
 
-    print(
-        f"Time to extract SPT soil types for borehole_id={selected_nzgd_id} from SQLite: {t2 - t1:.2f} s"
+    # set the last_layer's thickness from nan to be "not available"
+    # and convert the layer thickness to strings of 4 decimal places
+    spt_soil_types_df["layer_thickness"] = spt_soil_types_df["layer_thickness"].apply(
+        lambda x: "not available" if pd.isna(x) else f"{float(x):.4f}"
     )
 
     return spt_soil_types_df
