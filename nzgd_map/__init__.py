@@ -18,7 +18,7 @@ def create_app(test_config: Any = None):
         app.config.from_mapping(test_config)
 
     # import our views and register them with the app.
-    from app import views
+    from nzgd_map import views
 
     app.register_blueprint(views.bp)
 

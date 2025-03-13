@@ -3,20 +3,21 @@ The views module defines the Flask views (web pages) for the application.
 Each view is a function that returns an HTML template to render in the browser.
 """
 
-from collections import OrderedDict
-from pathlib import Path
 import os
+import sqlite3
+from collections import OrderedDict
+from io import StringIO
+from pathlib import Path
 
 import flask
-from flask import after_this_request
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from flask import after_this_request
 from plotly.subplots import make_subplots
-import sqlite3
-from . import query_sqlite_db
 
+from . import query_sqlite_db
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -169,21 +170,32 @@ def index():
     else:
         residual_description_text = ""
 
-    all_df_column_names = database_df.columns.tolist()
-    col_names_to_exclude = [
-        "index",
-        "type",
-        "link_to_pdf",
-        "nzgd_url",
-        "size",
-        "total_depth",
-        "original_reference",
-        "error_from_data",
-    ]
     col_names_to_display = [
-        col_name
-        for col_name in all_df_column_names
-        if col_name not in col_names_to_exclude
+        "record_name",
+        "nzgd_id",
+        "cpt_id",
+        "vs30",
+        "vs30_stddev",
+        "type_prefix",
+        "original_reference",
+        "investigation_date",
+        "published_date",
+        "latitude",
+        "longitude",
+        "model_vs30_foster_2019",
+        "model_vs30_stddev_foster_2019",
+        "model_gwl_westerhoff_2019",
+        "cpt_tip_net_area_ratio",
+        "measured_gwl",
+        "deepest_depth",
+        "shallowest_depth",
+        "region",
+        "district",
+        "suburb",
+        "city",
+        "vs30_log_residual",
+        "gwl_residual",
+        "spt_efficiency",
     ]
     col_names_to_display_str = ", ".join(col_names_to_display)
 
@@ -264,7 +276,7 @@ def spt_record(record_name: str):
         vs30s_df = query_sqlite_db.spt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
+    url_str_start = "https://quakecoresoft.canterbury.ac.nz/nzgd_source_files/"
 
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
@@ -389,7 +401,7 @@ def cpt_record(record_name: str):
         vs30s_df = query_sqlite_db.cpt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
+    url_str_start = "https://quakecoresoft.canterbury.ac.nz/nzgd_source_files/"
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
         / vs30s_df["region"][0]
@@ -544,6 +556,8 @@ def download_cpt_data(filename):
     )
 
     # Create a temporary CSV file containing the CPT data
+    download_buffer = StringIO()
+
     cpt_measurements_df[
         [
             "depth_(m)",
@@ -551,24 +565,17 @@ def download_cpt_data(filename):
             "sleeve_friction_fs_(Mpa)",
             "pore_pressure_u2_(Mpa)",
         ]
-    ].to_csv(instance_path / filename, index=False)
-
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    ].to_csv(download_buffer, index=False)
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
 
 @bp.route("/download_spt_data/<filename>")
 def download_spt_data(filename):
-    """Serve a file from the instance path for download and delete it afterwards."""
+    """Serve SPT data as a downloadable CSV file using an in-memory buffer."""
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
@@ -577,30 +584,28 @@ def download_spt_data(filename):
             nzgd_id, conn
         )
 
-    # Create a temporary CSV file containing the SPT data
+    # Create a buffer for the CSV data
+    download_buffer = StringIO()
+
+    # Rename columns and write to buffer
     spt_measurements_df.rename(
         columns={"depth": "depth_m", "n": "number_of_blows"}, inplace=True
     )
     spt_measurements_df[["depth_m", "number_of_blows"]].to_csv(
-        instance_path / filename, index=False
+        download_buffer, index=False
     )
 
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    # Create response directly from the buffer
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
 
 @bp.route("/download_spt_soil_types/<filename>")
 def download_spt_soil_types(filename):
-    """Serve a file from the instance path for download and delete it afterwards."""
+    """Serve SPT soil types as a downloadable CSV file using an in-memory buffer."""
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
@@ -611,20 +616,18 @@ def download_spt_soil_types(filename):
         columns={"top_depth": "depth_at_layer_top_m"}, inplace=True
     )
 
-    # Create a temporary CSV file containing the SPT data
+    # Create a buffer for the CSV data
+    download_buffer = StringIO()
+
+    # Write the data to the buffer
     spt_soil_types_df[["depth_at_layer_top_m", "soil_type"]].to_csv(
-        instance_path / filename, index=False
+        download_buffer, index=False
     )
 
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    # Create response directly from the buffer
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
@@ -665,8 +668,8 @@ def validate():
             "record_name",
             "vs30_log_residual",
             "gwl_residual",
-            "efficiency",
-            "borehole_diameter",
+            "spt_efficiency",
+            "spt_borehole_diameter",
         ]
     )
     try:
