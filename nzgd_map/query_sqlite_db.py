@@ -5,13 +5,9 @@ a SQLite database based on the selected correlations and hammer type.
 
 import sqlite3
 import time
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
-from nzgd_data_extraction.nzgd_sqlite import db
-
 
 def clip_highest_and_lowest_percent(
     data: pd.Series, lower_percent: float, upper_percent: float
