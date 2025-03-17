@@ -75,7 +75,7 @@ The terminal will show a message like the following:
     USING WEB BASED LOGIN
     To sign in with credentials on the command line, use 'docker login -u <username>'
 
-    Your one-time device confirmation code is: JGPX-PVKR
+    Your one-time device confirmation code is: XXXX-XXXX
     Press ENTER to open your browser or submit your device code here: https://login.docker.com/activate
 
     Waiting for authentication in the browser…
