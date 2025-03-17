@@ -18,6 +18,7 @@ from flask import after_this_request
 from plotly.subplots import make_subplots
 
 from . import query_sqlite_db
+from . import constants
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -29,20 +30,20 @@ def index():
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
 
-    with open(instance_path / "date_of_last_nzgd_retrieval.txt", "r") as file:
+    with open(instance_path / constants.last_retrieval_date_file_name, "r") as file:
         date_of_last_nzgd_retrieval = file.readline()
 
     # Retrieve selected vs30 correlation. If no selection, default to "boore_2004"
-    vs30_correlation = flask.request.args.get("vs30_correlation", default="boore_2004")
+    vs30_correlation = flask.request.args.get("vs30_correlation", default=constants.default_vs_to_vs30_correlation)
 
     # Retrieve selected spt_vs_correlation. If no selection, default to "brandenberg_2010"
     spt_vs_correlation = flask.request.args.get(
-        "spt_vs_correlation", default="brandenberg_2010"
+        "spt_vs_correlation", default=constants.default_spt_to_vs_correlation
     )
 
     # Retrieve selected cpt_vs_correlation. If no selection, default to "andrus_2007_pleistocene".
     cpt_vs_correlation = flask.request.args.get(
-        "cpt_vs_correlation", default="andrus_2007_pleistocene"
+        "cpt_vs_correlation", default=constants.default_cpt_to_vs_correlation
     )
 
     # Retrieve selected column to color by on the map. If no selection, default to "vs30".
@@ -57,7 +58,7 @@ def index():
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         vs_to_vs30_correlation_df = pd.read_sql_query(
             "SELECT * FROM vstovs30correlation", conn
         )
@@ -268,7 +269,7 @@ def spt_record(record_name: str):
 
     nzgd_id = int(record_name.split("_")[1])
 
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         spt_measurements_df = query_sqlite_db.spt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
@@ -276,7 +277,6 @@ def spt_record(record_name: str):
         vs30s_df = query_sqlite_db.spt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/nzgd_source_files/"
 
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
@@ -286,7 +286,7 @@ def spt_record(record_name: str):
         / vs30s_df["suburb"][0]
         / vs30s_df["record_name"][0]
     )
-    url_str = url_str_start + str(path_to_files)
+    url_str = constants.source_files_base_url + str(path_to_files)
     vs30s_df["estimate_number"] = np.arange(1, len(vs30s_df) + 1)
 
     spt_efficiency = vs30s_df["spt_efficiency"][0]
@@ -394,14 +394,13 @@ def cpt_record(record_name: str):
 
     nzgd_id = int(record_name.split("_")[1])
 
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         cpt_measurements_df = query_sqlite_db.cpt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
         vs30s_df = query_sqlite_db.cpt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/nzgd_source_files/"
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
         / vs30s_df["region"][0]
@@ -410,7 +409,7 @@ def cpt_record(record_name: str):
         / vs30s_df["suburb"][0]
         / vs30s_df["record_name"][0]
     )
-    url_str = url_str_start + str(path_to_files)
+    url_str = constants.source_files_base_url + str(path_to_files)
     vs30s_df["estimate_number"] = np.arange(1, len(vs30s_df) + 1)
 
     tip_net_area_ratio = vs30s_df["cpt_tip_net_area_ratio"][0]
@@ -540,7 +539,7 @@ def download_cpt_data(filename):
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         cpt_measurements_df = query_sqlite_db.cpt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
@@ -579,7 +578,7 @@ def download_spt_data(filename):
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         spt_measurements_df = query_sqlite_db.spt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
@@ -609,7 +608,7 @@ def download_spt_soil_types(filename):
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         spt_soil_types_df = query_sqlite_db.spt_soil_types_for_one_nzgd(nzgd_id, conn)
 
     spt_soil_types_df.rename(
