@@ -17,8 +17,7 @@ import plotly.graph_objects as go
 from flask import after_this_request
 from plotly.subplots import make_subplots
 
-from . import query_sqlite_db
-from . import constants
+from . import constants, query_sqlite_db
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -34,7 +33,9 @@ def index():
         date_of_last_nzgd_retrieval = file.readline()
 
     # Retrieve selected vs30 correlation. If no selection, default to "boore_2004"
-    vs30_correlation = flask.request.args.get("vs30_correlation", default=constants.default_vs_to_vs30_correlation)
+    vs30_correlation = flask.request.args.get(
+        "vs30_correlation", default=constants.default_vs_to_vs30_correlation
+    )
 
     # Retrieve selected spt_vs_correlation. If no selection, default to "brandenberg_2010"
     spt_vs_correlation = flask.request.args.get(
