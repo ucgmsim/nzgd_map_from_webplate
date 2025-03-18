@@ -5,9 +5,11 @@ a SQLite database based on the selected correlations and hammer type.
 
 import sqlite3
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
 
 def clip_highest_and_lowest_percent(
     data: pd.Series, lower_percent: float, upper_percent: float
@@ -79,16 +81,10 @@ def all_vs30s_given_correlations(
         A DataFrame containing the extracted data.
     """
 
-    vs_to_vs30_correlation_df = pd.read_sql_query(
-        "SELECT * FROM vstovs30correlation", conn
-    )
-    cpt_to_vs_correlation_df = pd.read_sql_query(
-        "SELECT * FROM cpttovscorrelation", conn
-    )
-    spt_to_vs_correlation_df = pd.read_sql_query(
-        "SELECT * FROM spttovscorrelation", conn
-    )
-    hammer_type_df = pd.read_sql_query("SELECT * FROM spttovs30hammertype", conn)
+    vs_to_vs30_correlation_df = pd.read_sql("SELECT * FROM vstovs30correlation", conn)
+    cpt_to_vs_correlation_df = pd.read_sql("SELECT * FROM cpttovscorrelation", conn)
+    spt_to_vs_correlation_df = pd.read_sql("SELECT * FROM spttovscorrelation", conn)
+    hammer_type_df = pd.read_sql("SELECT * FROM spttovs30hammertype", conn)
 
     vs_to_vs30_correlation_id_value = int(
         vs_to_vs30_correlation_df[
@@ -126,11 +122,11 @@ def all_vs30s_given_correlations(
     WITH filtered_data AS (
         SELECT cpt_id, nzgd_id, cpt_to_vs_correlation_id, vs_to_vs30_correlation_id, vs30, vs30_stddev
         FROM cptvs30estimates
-        WHERE vs_to_vs30_correlation_id = {vs_to_vs30_correlation_id_value}  -- First filter
+        WHERE vs_to_vs30_correlation_id = ?  -- First filter
     ), second_filter AS (
         SELECT cpt_id, nzgd_id, cpt_to_vs_correlation_id, vs_to_vs30_correlation_id, vs30, vs30_stddev
         FROM filtered_data
-        WHERE cpt_to_vs_correlation_id = {cpt_to_vs_correlation_id_value}   -- Second filter
+        WHERE cpt_to_vs_correlation_id = ?   -- Second filter
     )
     SELECT 
         sf.cpt_id, sf.nzgd_id, sf.vs30, sf.vs30_stddev,
@@ -160,7 +156,11 @@ def all_vs30s_given_correlations(
     # Extract the CPT data from the SQLite database and store it in a Pandas DataFrame.
     # Also get timing points (t1, t2) to assess performance.
     t1 = time.time()
-    cpt_database_df = pd.read_sql_query(cpt_sql_query, conn)
+    cpt_database_df = pd.read_sql(
+        cpt_sql_query,
+        conn,
+        params=(vs_to_vs30_correlation_id_value, cpt_to_vs_correlation_id_value),
+    )
     t2 = time.time()
 
     # Add columns needed for the web app
@@ -178,19 +178,19 @@ def all_vs30s_given_correlations(
 
     # The SQLite query to extract the SPT data.
     # There far fewer SPT Vs30 values than CPT Vs30 values, so this should be fast, regardless of the query structure.
-    spt_sql_query = f"""
+    spt_sql_query = """
     WITH filtered_data AS (
         SELECT *
         FROM sptvs30estimates
-        WHERE vs_to_vs30_correlation_id = {vs_to_vs30_correlation_id_value}  -- First filter
+        WHERE vs_to_vs30_correlation_id = ?  -- First filter
     ), second_filter AS (
         SELECT *
         FROM filtered_data
-        WHERE spt_to_vs_correlation_id = {spt_to_vs_correlation_id_value}   -- Second filter
+        WHERE spt_to_vs_correlation_id = ?   -- Second filter
     ), third_filter AS (
         SELECT *
         FROM second_filter
-        WHERE hammer_type_id = {hammer_type_id_value}   -- Second filter
+        WHERE hammer_type_id = ?   -- Second filter
     )
     SELECT 
         tf.spt_id, tf.vs30, tf.vs30_stddev,
@@ -219,10 +219,18 @@ def all_vs30s_given_correlations(
     # Extract the SPT data from the SQLite database and store it in a Pandas DataFrame.
     # Also get timing points (t3, t4) to assess performance.
     t3 = time.time()
-    spt_partial_database_df = pd.read_sql_query(spt_sql_query, conn)
+    spt_partial_database_df = pd.read_sql(
+        spt_sql_query,
+        conn,
+        params=(
+            vs_to_vs30_correlation_id_value,
+            spt_to_vs_correlation_id_value,
+            hammer_type_id_value,
+        ),
+    )
     t4 = time.time()
 
-    spt_measurements_df = pd.read_sql_query("SELECT * FROM sptmeasurements", conn)
+    spt_measurements_df = pd.read_sql("SELECT * FROM sptmeasurements", conn)
     # Use Pandas groupby to quickly calculate the shallowest and deepest depths for each borehole
     depth_stats_df = (
         spt_measurements_df.groupby("borehole_id")["depth"]
@@ -302,7 +310,7 @@ def cpt_measurements_for_one_nzgd(
         A DataFrame containing the CPT measurements and metadata as columns.
     """
 
-    query = f"""SELECT 
+    query = """SELECT 
     cptmeasurements.depth,
     cptmeasurements.qc,
     cptmeasurements.fs,
@@ -311,11 +319,11 @@ def cpt_measurements_for_one_nzgd(
     cptreport.nzgd_id
     FROM cptmeasurements
     JOIN cptreport ON cptmeasurements.cpt_id = cptreport.cpt_id
-    WHERE cptreport.nzgd_id = {selected_nzgd_id}
+    WHERE cptreport.nzgd_id = ?
     ORDER BY cptmeasurements.depth ASC;"""
 
     t1 = time.time()
-    cpt_measurements_df = pd.read_sql_query(query, conn)
+    cpt_measurements_df = pd.read_sql(query, conn, params=(selected_nzgd_id,))
     t2 = time.time()
 
     print(
@@ -344,16 +352,16 @@ def spt_measurements_for_one_nzgd(
         A DataFrame containing the SPT.
     """
 
-    query = f"""SELECT 
+    query = """SELECT 
     sptmeasurements.depth,
     sptmeasurements.n,
     sptmeasurements.borehole_id AS nzgd_id
     FROM sptmeasurements
-    WHERE sptmeasurements.borehole_id = {selected_nzgd_id}
+    WHERE sptmeasurements.borehole_id = ?
     ORDER BY sptmeasurements.depth ASC;"""
 
     t1 = time.time()
-    spt_measurements_df = pd.read_sql_query(query, conn)
+    spt_measurements_df = pd.read_sql(query, conn, params=(selected_nzgd_id,))
     t2 = time.time()
 
     print(
@@ -383,7 +391,7 @@ def spt_soil_types_for_one_nzgd(
     """
 
     # SQL query to join multiple tables and extract soil types for the given NZGD ID
-    query = f"""SELECT *
+    query = """SELECT *
     FROM sptreport
     JOIN soilmeasurements ON soilmeasurements.report_id = sptreport.borehole_id
     JOIN soilmeasurementsoiltype ON soilmeasurementsoiltype.soil_measurement_id = soilmeasurements.measurement_id
@@ -440,7 +448,7 @@ def cpt_vs30s_for_one_nzgd_id(
         A DataFrame containing the Vs30 values and related metadata.
     """
 
-    query = f"""SELECT 
+    query = """SELECT 
     cptvs30estimates.cpt_id,
     cptvs30estimates.nzgd_id,
     cptvs30estimates.vs30,
@@ -482,10 +490,10 @@ def cpt_vs30s_for_one_nzgd_id(
         ON nzgdrecord.suburb_id = suburb.suburb_id
     JOIN city
         ON nzgdrecord.city_id = city.city_id
-    WHERE cptvs30estimates.nzgd_id = {selected_nzgd_id};"""
+    WHERE cptvs30estimates.nzgd_id = ?;"""
 
     t1 = time.time()
-    cpt_vs30_df = pd.read_sql_query(query, conn)
+    cpt_vs30_df = pd.read_sql(query, conn, params=(selected_nzgd_id,))
 
     # Add columns needed for the web app
     cpt_vs30_df["record_name"] = (
@@ -545,7 +553,7 @@ def spt_vs30s_for_one_nzgd_id(
     pd.DataFrame
         A DataFrame containing the Vs30 values and related metadata.
     """
-    query = f"""SELECT
+    query = """SELECT
     sptvs30estimates.spt_id,
     sptvs30estimates.borehole_diameter AS spt_borehole_diameter_for_vs30_calculation,
     sptvs30estimates.vs30,    
@@ -591,10 +599,10 @@ def spt_vs30s_for_one_nzgd_id(
         ON nzgdrecord.suburb_id = suburb.suburb_id
     JOIN city
         ON nzgdrecord.city_id = city.city_id
-    WHERE sptvs30estimates.spt_id = {selected_nzgd_id};"""
+    WHERE sptvs30estimates.spt_id = ?;"""
 
     t1 = time.time()
-    spt_vs30_df = pd.read_sql_query(query, conn)
+    spt_vs30_df = pd.read_sql(query, conn, params=(selected_nzgd_id,))
     spt_vs30_df.rename(columns={"spt_id": "nzgd_id"}, inplace=True)
 
     spt_measurements_df = spt_measurements_for_one_nzgd(selected_nzgd_id, conn)
