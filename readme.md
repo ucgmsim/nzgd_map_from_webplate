@@ -14,7 +14,7 @@ Database (NZGD). This repository also contains files for building a Docker image
 To install an uneditable version of `nzgd_map` outside a Docker container, simply enter the following 
 command in a terminal:
 
-* `pip install "git+https://github.com/ucgmsim/nzgd_map#egg=nzgd_map"` 
+* `pip install "git+https://github.com/ucgmsim/nzgd_map"` 
 
 #### Installing an editable version
 
