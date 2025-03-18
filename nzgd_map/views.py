@@ -3,20 +3,21 @@ The views module defines the Flask views (web pages) for the application.
 Each view is a function that returns an HTML template to render in the browser.
 """
 
-from collections import OrderedDict
-from pathlib import Path
 import os
+import sqlite3
+from collections import OrderedDict
+from io import StringIO
+from pathlib import Path
 
 import flask
-from flask import after_this_request
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from flask import after_this_request
 from plotly.subplots import make_subplots
-import sqlite3
-from . import query_sqlite_db
 
+from . import constants, query_sqlite_db
 
 # Create a Flask Blueprint for the views
 bp = flask.Blueprint("views", __name__)
@@ -28,20 +29,22 @@ def index():
     # Access the instance folder for application-specific data
     instance_path = Path(flask.current_app.instance_path)
 
-    with open(instance_path / "date_of_last_nzgd_retrieval.txt", "r") as file:
+    with open(instance_path / constants.last_retrieval_date_file_name, "r") as file:
         date_of_last_nzgd_retrieval = file.readline()
 
     # Retrieve selected vs30 correlation. If no selection, default to "boore_2004"
-    vs30_correlation = flask.request.args.get("vs30_correlation", default="boore_2004")
+    vs30_correlation = flask.request.args.get(
+        "vs30_correlation", default=constants.default_vs_to_vs30_correlation
+    )
 
     # Retrieve selected spt_vs_correlation. If no selection, default to "brandenberg_2010"
     spt_vs_correlation = flask.request.args.get(
-        "spt_vs_correlation", default="brandenberg_2010"
+        "spt_vs_correlation", default=constants.default_spt_to_vs_correlation
     )
 
     # Retrieve selected cpt_vs_correlation. If no selection, default to "andrus_2007_pleistocene".
     cpt_vs_correlation = flask.request.args.get(
-        "cpt_vs_correlation", default="andrus_2007_pleistocene"
+        "cpt_vs_correlation", default=constants.default_cpt_to_vs_correlation
     )
 
     # Retrieve selected column to color by on the map. If no selection, default to "vs30".
@@ -56,7 +59,7 @@ def index():
     # Retrieve an optional custom query from request arguments
     query = flask.request.args.get("query", default=None)
 
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         vs_to_vs30_correlation_df = pd.read_sql_query(
             "SELECT * FROM vstovs30correlation", conn
         )
@@ -169,21 +172,32 @@ def index():
     else:
         residual_description_text = ""
 
-    all_df_column_names = database_df.columns.tolist()
-    col_names_to_exclude = [
-        "index",
-        "type",
-        "link_to_pdf",
-        "nzgd_url",
-        "size",
-        "total_depth",
-        "original_reference",
-        "error_from_data",
-    ]
     col_names_to_display = [
-        col_name
-        for col_name in all_df_column_names
-        if col_name not in col_names_to_exclude
+        "record_name",
+        "nzgd_id",
+        "cpt_id",
+        "vs30",
+        "vs30_stddev",
+        "type_prefix",
+        "original_reference",
+        "investigation_date",
+        "published_date",
+        "latitude",
+        "longitude",
+        "model_vs30_foster_2019",
+        "model_vs30_stddev_foster_2019",
+        "model_gwl_westerhoff_2019",
+        "cpt_tip_net_area_ratio",
+        "measured_gwl",
+        "deepest_depth",
+        "shallowest_depth",
+        "region",
+        "district",
+        "suburb",
+        "city",
+        "vs30_log_residual",
+        "gwl_residual",
+        "spt_efficiency",
     ]
     col_names_to_display_str = ", ".join(col_names_to_display)
 
@@ -256,7 +270,7 @@ def spt_record(record_name: str):
 
     nzgd_id = int(record_name.split("_")[1])
 
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         spt_measurements_df = query_sqlite_db.spt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
@@ -264,7 +278,6 @@ def spt_record(record_name: str):
         vs30s_df = query_sqlite_db.spt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
 
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
@@ -274,7 +287,7 @@ def spt_record(record_name: str):
         / vs30s_df["suburb"][0]
         / vs30s_df["record_name"][0]
     )
-    url_str = url_str_start + str(path_to_files)
+    url_str = constants.source_files_base_url + str(path_to_files)
     vs30s_df["estimate_number"] = np.arange(1, len(vs30s_df) + 1)
 
     spt_efficiency = vs30s_df["spt_efficiency"][0]
@@ -382,14 +395,13 @@ def cpt_record(record_name: str):
 
     nzgd_id = int(record_name.split("_")[1])
 
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         cpt_measurements_df = query_sqlite_db.cpt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
         vs30s_df = query_sqlite_db.cpt_vs30s_for_one_nzgd_id(nzgd_id, conn)
 
     type_prefix_to_folder = {"CPT": "cpt", "SCPT": "scpt", "BH": "borehole"}
-    url_str_start = "https://quakecoresoft.canterbury.ac.nz/raw_from_nzgd/"
     path_to_files = (
         Path(type_prefix_to_folder[vs30s_df["type_prefix"][0]])
         / vs30s_df["region"][0]
@@ -398,7 +410,7 @@ def cpt_record(record_name: str):
         / vs30s_df["suburb"][0]
         / vs30s_df["record_name"][0]
     )
-    url_str = url_str_start + str(path_to_files)
+    url_str = constants.source_files_base_url + str(path_to_files)
     vs30s_df["estimate_number"] = np.arange(1, len(vs30s_df) + 1)
 
     tip_net_area_ratio = vs30s_df["cpt_tip_net_area_ratio"][0]
@@ -528,7 +540,7 @@ def download_cpt_data(filename):
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         cpt_measurements_df = query_sqlite_db.cpt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
@@ -544,6 +556,8 @@ def download_cpt_data(filename):
     )
 
     # Create a temporary CSV file containing the CPT data
+    download_buffer = StringIO()
+
     cpt_measurements_df[
         [
             "depth_(m)",
@@ -551,80 +565,69 @@ def download_cpt_data(filename):
             "sleeve_friction_fs_(Mpa)",
             "pore_pressure_u2_(Mpa)",
         ]
-    ].to_csv(instance_path / filename, index=False)
-
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    ].to_csv(download_buffer, index=False)
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
 
 @bp.route("/download_spt_data/<filename>")
 def download_spt_data(filename):
-    """Serve a file from the instance path for download and delete it afterwards."""
+    """Serve SPT data as a downloadable CSV file using an in-memory buffer."""
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         spt_measurements_df = query_sqlite_db.spt_measurements_for_one_nzgd(
             nzgd_id, conn
         )
 
-    # Create a temporary CSV file containing the SPT data
+    # Create a buffer for the CSV data
+    download_buffer = StringIO()
+
+    # Rename columns and write to buffer
     spt_measurements_df.rename(
         columns={"depth": "depth_m", "n": "number_of_blows"}, inplace=True
     )
     spt_measurements_df[["depth_m", "number_of_blows"]].to_csv(
-        instance_path / filename, index=False
+        download_buffer, index=False
     )
 
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    # Create response directly from the buffer
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
 
 @bp.route("/download_spt_soil_types/<filename>")
 def download_spt_soil_types(filename):
-    """Serve a file from the instance path for download and delete it afterwards."""
+    """Serve SPT soil types as a downloadable CSV file using an in-memory buffer."""
     instance_path = Path(flask.current_app.instance_path)
 
     nzgd_id = int(filename.split("_")[1])
-    with sqlite3.connect(instance_path / "extracted_nzgd.db") as conn:
+    with sqlite3.connect(instance_path / constants.database_file_name) as conn:
         spt_soil_types_df = query_sqlite_db.spt_soil_types_for_one_nzgd(nzgd_id, conn)
 
     spt_soil_types_df.rename(
         columns={"top_depth": "depth_at_layer_top_m"}, inplace=True
     )
 
-    # Create a temporary CSV file containing the SPT data
+    # Create a buffer for the CSV data
+    download_buffer = StringIO()
+
+    # Write the data to the buffer
     spt_soil_types_df[["depth_at_layer_top_m", "soil_type"]].to_csv(
-        instance_path / filename, index=False
+        download_buffer, index=False
     )
 
-    # Download the temporary CSV file
-    file_path = instance_path / filename
-    response = flask.send_from_directory(instance_path, filename, as_attachment=True)
-
-    # Delete the temporary file after it has been downloaded
-    @after_this_request
-    def remove_file_after_request(response):
-        remove_file(file_path)
-        return response
+    # Create response directly from the buffer
+    response = flask.make_response(download_buffer.getvalue())
+    response.mimetype = "text/csv"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
 
     return response
 
@@ -665,8 +668,8 @@ def validate():
             "record_name",
             "vs30_log_residual",
             "gwl_residual",
-            "efficiency",
-            "borehole_diameter",
+            "spt_efficiency",
+            "spt_borehole_diameter",
         ]
     )
     try:

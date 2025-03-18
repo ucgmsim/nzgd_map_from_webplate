@@ -18,8 +18,12 @@
     <br>
     <b>Available query fields:</b> {{ col_names_to_display }}
     <br>
-    <br> <b> Example query:</b> (vs30 < 100) & (region=="Canterbury")
-    <br>
+    <br> <b> Example queries:</b>
+    <ul>
+        <li> (vs30 < 100) & (region=="Canterbury") [Show records where Vs30 is less than 100 m/s and the region is Canterbury] </li>
+        <li> type_prefix == "X" [Show records of a particular type. X = "BH", "CPT", or "SCPT". Note that "BH" (borehole) also covers SPT] </li>
+        <li> investigation_date > "2024-08-20" [Show records with date of investigation later than 20 August 2024] </li>
+    </ul>
     <br>
 
 </section>
