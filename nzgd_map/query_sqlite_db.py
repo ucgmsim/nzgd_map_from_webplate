@@ -388,7 +388,7 @@ def spt_soil_types_for_one_nzgd(
     JOIN soilmeasurements ON soilmeasurements.report_id = sptreport.borehole_id
     JOIN soilmeasurementsoiltype ON soilmeasurementsoiltype.soil_measurement_id = soilmeasurements.measurement_id
     JOIN soiltypes ON soilmeasurementsoiltype.soil_type_id = soiltypes.id
-    WHERE sptreport.borehole_id = {selected_nzgd_id}
+    WHERE sptreport.borehole_id = ?
     ORDER BY soilmeasurements.top_depth ASC;"""
 
     spt_soil_types_df = pd.read_sql_query(query, conn)
