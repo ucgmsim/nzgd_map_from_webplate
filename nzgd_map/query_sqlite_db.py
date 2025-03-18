@@ -391,7 +391,7 @@ def spt_soil_types_for_one_nzgd(
     WHERE sptreport.borehole_id = ?
     ORDER BY soilmeasurements.top_depth ASC;"""
 
-    spt_soil_types_df = pd.read_sql_query(query, conn)
+    spt_soil_types_df = pd.read_sql(query, conn, params=(selected_nzgd_id,))
 
     spt_soil_types_df.rename(columns={"name": "soil_type"}, inplace=True)
 
