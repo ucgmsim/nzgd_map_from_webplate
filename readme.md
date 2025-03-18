@@ -88,7 +88,7 @@ the message, and our organization's Docker Hub username and password to log in.
 
 The following files in the `docker` directory setup the NZGD map service in a container, and run it on startup with systemd. 
 
-- [Service file to start NZGD map service](docker/nzgd_map.service)
+- [Service file to start NZGD map service](docker/root_docker_nzgd_map.service)
 - [Dockerfile defining NZGD map container](docker/Dockerfile)
 - [uWSGI configuration for NZGD server](docker/nzgd.ini)
 - [nginx config exposing server outside the container](docker/nginx.conf)
