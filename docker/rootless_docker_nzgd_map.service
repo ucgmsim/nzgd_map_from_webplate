@@ -7,7 +7,9 @@ Description=NZGD Map Service
 # Starts the [Service] section, which controls how the service process executes and behaves.
 [Service]
 
-# Run the container as a user. <DOCKER_SOCKET_FOR_USER> is a four digit number given by
+# Run the service as a user. <USER> is the username of the user that will run the service.
+User=<USER>
+# <DOCKER_SOCKET_FOR_USER> is a four digit number given by
 # sudo loginctl enable-linger $(whoami)
 Environment="DOCKER_HOST=unix:///run/user/<DOCKER_SOCKET_FOR_USER>/docker.sock"
 
